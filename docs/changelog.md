@@ -5,7 +5,7 @@
 ## 2026-05-20 — mkdocs 기반 GitHub Pages 가이드 사이트
 
 ### 추가 (Added)
-- **mkdocs.yml** : Material 테마(한국어, Pretendard, Mermaid), `docs/` 전체를 사이트 구조로 정리한 nav. 관리자·운영·배포 등 사내 전용 문서는 본 공개 리포에는 포함하지 않습니다.
+- **mkdocs.yml** : Material 테마(한국어, Pretendard, Mermaid), `docs/` 전체를 사이트 구조로 정리한 nav. 외부 노출 금지 문서는 `exclude_docs:` 처리 (`admin.md` · `operations.md` · `deployment.md` · `README.md`).
 - **GitHub Pages 자동 배포** : `.github/workflows/docs.yml` — `docs/` 또는 `mkdocs.yml` 푸시 시 `mkdocs build --strict` → Pages 배포 (총무팀과 동일 패턴).
 - **docs/index.md** : 공개 랜딩 페이지. 시스템 한눈 요약, 사용자 매뉴얼 진입, 기여 규칙 안내.
 - **CONTRIBUTING.md** : "기능 추가 시 항상 `docs/` 갱신" 규칙과 영역별 체크리스트 (DB → erd.md, API → api.md, UX → design-system.md 등).

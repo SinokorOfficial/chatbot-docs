@@ -7,9 +7,8 @@ repo_url: https://github.com/ysh21368ai/chatbot-docs
 
 docs_dir: docs
 
-# 공개 리포라 관리자·운영·배포 등 사내 전용 문서는 아예 포함하지 않습니다.
-# 원본 비공개 코드 리포(ysh21368ai/chatbot, cleanup 브랜치) 의 docs/ 와 동기화하되,
-# admin.md / operations.md / deployment.md / README.md 는 제외하고 푸시합니다.
+# 사내 전용 문서(admin / operations / deployment / README)는 본 공개 리포에 푸시하지 않습니다.
+# scripts/sync-from-private.sh 가 그 파일들을 자동으로 제외합니다.
 
 nav:
   - 홈: index.md
@@ -45,6 +44,27 @@ nav:
 
   - 권한:
       - RBAC: rbac.md
+
+  - 코드 워크스루:
+      - 시작하기: code-walkthrough/index.md
+      - 큰 그림:
+          - main · 부팅 흐름: code-walkthrough/backend-main.md
+          - DB 모델 지도: code-walkthrough/backend-models.md
+          - 공통 의존성: code-walkthrough/backend-deps.md
+      - 백엔드 도메인:
+          - auth — 로그인/가입/승인: code-walkthrough/backend-auth.md
+          - chat — SSE + agent: code-walkthrough/backend-chat.md
+          - documents — RAG 인제스트: code-walkthrough/backend-documents.md
+          - workflows — 엔진 + NL 생성: code-walkthrough/backend-workflows.md
+          - faqs — FAQ + AI 답글: code-walkthrough/backend-faqs.md
+          - 나머지 모듈 묶음: code-walkthrough/backend-misc.md
+      - 프론트엔드:
+          - 부팅 + AppShell: code-walkthrough/frontend-shell.md
+          - API 클라이언트: code-walkthrough/frontend-api.md
+          - 채팅 화면 (SSE 수신): code-walkthrough/frontend-chat.md
+          - 워크플로 캔버스 (2D · 3D): code-walkthrough/frontend-workflow-canvas.md
+          - 테마 시스템: code-walkthrough/frontend-theme.md
+          - 디자인 시스템 (Stitch): code-walkthrough/frontend-design.md
 
   - 변경 이력: changelog.md
 
