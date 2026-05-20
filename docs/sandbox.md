@@ -1,0 +1,146 @@
+# 코드 샌드박스 구조
+
+> `code_interpreter` 도구가 사용하는 격리 실행 환경. 에이전트가 생성한 Python 코드를 컨테이너에서 실행하여 결과(stdout/이미지)를 다시 LLM에 주입합니다.
+
+## 1. 전체 그림
+
+```mermaid
+flowchart LR
+ subgraph Backend [FastAPI backend]
+ A["agent loop"] -->|tool_call: code_interpreter| B["code_sandbox.run_code()"]
+ B -->|docker run --rm| C[(chatbot-sandbox 이미지)]
+ B -->|tempdir mount| W[/tmp/sandbox-xxx/]
+ C --> W
+ B -->|stdout / stderr / images| A
+ end
+ subgraph Host
+ D[Docker daemon]
+ C -.실행.-> D
+ end
+ U[사용자] -. SSE 스트림 .- A
+```
+
+## 2. 컨테이너 이미지 (`backend/sandbox/Dockerfile`)
+
+- 베이스: `python:3.11-slim`
+- 시스템 패키지: gcc/g++/libffi/libxml2/libxslt/ghostscript/fontconfig
+- **나눔고딕** 한글 폰트를 직접 설치(`/usr/share/fonts/truetype/nanum`) → matplotlib 한글 깨짐 방지
+- 기본 파이썬 패키지 (과학계산/시각화/문서 생성):
+ - 데이터: `pandas numpy scipy scikit-learn statsmodels sympy`
+ - 시각화: `matplotlib seaborn plotly bokeh altair wordcloud`
+ - 오피스: `openpyxl xlsxwriter xlrd python-docx python-pptx reportlab`
+ - 네트워크(런타임은 차단되지만 파서용으로 포함): `requests httpx beautifulsoup4 lxml`
+ - 유틸: `tabulate pyyaml toml jsonschema networkx Pillow faker tqdm`
+ - 보안/시간: `cryptography python-dateutil pytz`
+ - SVG: `cairosvg svgwrite`
+- `MPLBACKEND=Agg` — 헤드리스 matplotlib
+- 전용 유저 `sandbox`로 권한 낮춤 (`USER sandbox`)
+
+빌드:
+
+```bash
+docker build -t chatbot-sandbox backend/sandbox
+```
+
+## 3. 실행 래퍼 (`backend/app/services/code_sandbox.py`)
+
+```python
+cmd = [
+ "docker", "run", "--rm",
+ "--name", f"sandbox-{run_id}",
+ "--network", "none", # 네트워크 완전 차단
+ "--memory", "512m", # OOM 방지
+ "--cpus", "1", # CPU 1 코어 제한
+ "--pids-limit", "64", # fork 폭탄 방지
+ "-v", f"{workspace}:/workspace:rw",
+ "chatbot-sandbox",
+ "python", "/workspace/_run.py",
+]
+```
+
+| 경계 | 값 | 목적 |
+| ---- | ---- | ---- |
+| 네트워크 | `--network none` | 데이터 유출·웹 호출 차단 |
+| 메모리 | 512 MB | 큰 모델 로드·배열 남용 차단 |
+| CPU | 1 core | 장시간 루프 방지 |
+| 프로세스 수 | 64 | fork 폭탄 방지 |
+| 디스크 | tempdir(`/tmp/sandbox-<id>`) → `/workspace` | 실행 종료 시 shutil.rmtree로 삭제 |
+| 실행 시간 | 기본 30s, wait_for 타임아웃 시 `docker kill` | 무한 루프 방지 |
+| 출력 크기 | stdout 10 KB / stderr 5 KB로 절단 | 로그 오염 방지 |
+
+## 4. 입출력 계약
+
+입력:
+
+```python
+await run_code(
+ code: str,
+ uploaded_files: dict[str, bytes] | None = None, # 사용자가 업로드한 파일을 워크스페이스로 복사
+ timeout: int = 30,
+)
+```
+
+출력:
+
+```python
+{
+ "stdout": "표준출력 (≤ 10 KB)",
+ "stderr": "표준에러 (≤ 5 KB)",
+ "exit_code": 0,
+ "images": [
+ {"filename": "chart.png", "b64": "...", "media_type": "image/png"}
+ ],
+}
+```
+
+`format_code_result(result)`는 위 dict를 LLM에 되먹임할 텍스트로 변환합니다
+(오류 시 exit code와 stderr 포함, 이미지가 있으면 별도 안내 라인).
+
+## 5. 실행 시퀀스
+
+```mermaid
+sequenceDiagram
+ autonumber
+ participant LLM
+ participant Agent as agent.run_agent
+ participant SB as code_sandbox.run_code
+ participant Docker
+
+ LLM-->>Agent: tool_call(code_interpreter, {code})
+ Agent->>SB: run_code(code, uploaded_files, timeout=30)
+ SB->>SB: mkdtemp → _run.py 작성 + 업로드 파일 복사
+ SB->>Docker: docker run --network none --memory 512m ...
+ Docker-->>SB: stdout / stderr / exit_code
+ SB->>SB: workspace에서 .png/.svg/.jpg 수집 → base64
+ SB-->>Agent: {stdout, stderr, exit_code, images}
+ Agent->>LLM: tool_result(텍스트 요약) + image_block 전달
+ Agent-->>SSE: {"sandbox": {...}} 이벤트
+```
+
+## 6. 보안 경계 요약
+
+1. **Docker 격리** — 컨테이너에서만 코드 실행. 호스트 파일시스템은 `-v` 로 마운트한 임시 디렉토리만 접근 가능.
+2. **네트워크 차단** — `--network none` 으로 외부 호출 불가(데이터 반출/외부 API 호출 모두 실패).
+3. **자원 상한** — 메모리/CPU/PID 제한으로 DoS 회피.
+4. **임시 작업공간** — 실행 종료 직후 `shutil.rmtree`로 삭제. 재시도는 항상 새 디렉토리에서.
+5. **타임아웃** — `asyncio.wait_for` 후 `docker kill`로 강제 종료.
+6. **이미지 신뢰** — `chatbot-sandbox`는 사내에서 빌드한 이미지만 사용(배포 파이프라인에 이미지 빌드 단계 포함, 배포 가이드 (사내 전용) 참조).
+7. **이미지 출력만 수집** — `.png/.jpg/.jpeg/.svg/.gif`만 base64 인코딩. 실행 결과로 생성된 임의 바이너리는 호스트로 유출되지 않음.
+
+## 7. 실패 모드
+
+| 상황 | 징후 | 대응 |
+| ---- | ---- | ---- |
+| Docker 데몬 미실행 | `docker: command not found` 또는 connection refused | Agent가 stderr 메시지를 그대로 LLM에 전달하고 사용자에게 "환경 문제" 안내 |
+| 타임아웃 | exit_code=-1, stderr="실행 시간 초과(30초)" | 사용자에게 재작성 유도 |
+| OOM | exit_code=137 (SIGKILL) | "메모리 부족" 안내 |
+| 이미지 미빌드 | `Unable to find image 'chatbot-sandbox:latest'` | 배포 파이프라인에서 `docker build` 스텝 누락 확인 |
+| 사용자 업로드 경로 충돌 | 동일 파일명 덮어쓰기 | 업로드 시 `doc_id_` 프리픽스로 보장(호스트 경로는 `data/uploads/{team_id}/{doc_id}_name`) |
+
+## 8. 향후 확장 후보
+
+- **gVisor / Kata / Firecracker** — 커널 공격면 축소가 필요하면 러ntime 교체.
+- **Seccomp / AppArmor 프로필** — 시스템콜 화이트리스트.
+- **읽기 전용 FS** — `--read-only` + `--tmpfs /workspace` 전환.
+- **지속 워크스페이스** — 사용자 세션 단위로 디렉토리를 유지해 연속 분석 지원.
+- **GPU 샌드박스** — 대규모 로컬 모델 추론용 별도 이미지 + `--gpus all` 옵션.

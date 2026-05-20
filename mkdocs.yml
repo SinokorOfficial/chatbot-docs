@@ -1,0 +1,121 @@
+site_name: 장금상선 그룹 챗봇 · 기술 가이드
+site_description: 사내 그룹 챗봇 의 사용·기술 문서 (공개판)
+site_url: https://ysh21368ai.github.io/chatbot-docs/
+
+repo_name: chatbot-docs
+repo_url: https://github.com/ysh21368ai/chatbot-docs
+
+docs_dir: docs
+
+# 공개 리포라 관리자·운영·배포 등 사내 전용 문서는 아예 포함하지 않습니다.
+# 원본 비공개 코드 리포(ysh21368ai/chatbot, cleanup 브랜치) 의 docs/ 와 동기화하되,
+# admin.md / operations.md / deployment.md / README.md 는 제외하고 푸시합니다.
+
+nav:
+  - 홈: index.md
+  - 사용 매뉴얼: user_manual.md
+
+  - 시스템:
+      - 아키텍처 개요: architecture.md
+      - 아키텍처 결정 기록 (ADR): architecture-decisions.md
+      - 모듈 맵: modules.md
+      - 서비스 카탈로그: services.md
+      - 확장성·성능: scaling.md
+
+  - 데이터:
+      - ERD · 스키마: erd.md
+      - 문서 RAG: document_rag.md
+      - RAG 개선 노트: rag-improvements.md
+
+  - 기능:
+      - 챗봇: chatbot.md
+      - 챗봇 공유: chatbot_sharing.md
+      - 스킬 마켓플레이스: skills-marketplace.md
+      - 도구: tools.md
+      - 코드 인터프리터 샌드박스: sandbox.md
+      - 브랜드 테마: themes.md
+
+  - API: api.md
+
+  - 프론트엔드:
+      - 프론트엔드 아키텍처: frontend.md
+      - 디자인 철학: design-philosophy.md
+      - 디자인 시스템: design-system.md
+      - UX 원칙: ux-principles.md
+
+  - 권한:
+      - RBAC: rbac.md
+
+  - 변경 이력: changelog.md
+
+theme:
+  name: material
+  language: ko
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: 다크 모드로
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: 라이트 모드로
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.tabs.link
+  font:
+    text: Pretendard
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: ¶
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+extra:
+  social:
+    - icon: fontawesome/solid/envelope
+      link: mailto:ysh21368@sinokor.co.kr
+      name: 문의 (AI 파트)
+
+copyright: 장금상선 AI 파트
