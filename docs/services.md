@@ -44,7 +44,7 @@ mindmap
 
 | 영역 | 기능 | 참조 |
 | ---- | ---- | ---- |
-| 인증 | 이메일/비밀번호, JWT, 초대코드 가입, 승인/비활성화 | 관리자 문서 (사내 전용) · [rbac.md](./rbac.md) |
+| 인증 | 이메일/비밀번호, JWT, 초대코드 가입, 승인/비활성화 | [admin.md](./admin.md) · [rbac.md](./rbac.md) |
 | 대화 | SSE 스트리밍, 멀티모달(이미지·파일), 모델 선택, 제목 자동 생성 | [api.md](./api.md#chat-chat) |
 | 문서 RAG | 업로드→파싱→청크→임베딩, 삭제 cascade, 개인/팀/공유 스코프 | [document_rag.md](./document_rag.md) |
 | 챗봇 | 시스템 프롬프트·모델·문서·도구 번들링, Public/Private | [chatbot.md](./chatbot.md) |
@@ -52,7 +52,7 @@ mindmap
 | 도구 | builtin/oauth/http/mcp 4종, 자격증명 안전 저장 | [tools.md](./tools.md) |
 | 코드 실행 | Docker 기반 Python 샌드박스, 네트워크 차단 | [sandbox.md](./sandbox.md) |
 | 감사 | 팀원 대화 열람(team_auditor+) | [rbac.md](./rbac.md) |
-| 배포 | Azure + GitHub Actions CI/CD | 배포 가이드 (사내 전용) |
+| 배포 | Azure + GitHub Actions CI/CD | [deployment.md](./deployment.md) |
 
 ## 3. 사용자 관점 시나리오
 

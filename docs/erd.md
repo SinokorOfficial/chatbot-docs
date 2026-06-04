@@ -56,6 +56,9 @@ erDiagram
 | approval_status | Enum `ApprovalStatus` | * default=pending | **신규** — pending / approved / rejected |
 | invited_by_user_id | UUID FK users.id | nullable | **신규** — 초대한 팀장 |
 | is_active | Boolean | * default=true | |
+| active_theme_id | UUID FK themes.id | nullable | 활성 디자인 테마 |
+| level | Integer | * default=0 | **신규** — 게임화 레벨 overall 1~40 (0=미초기화). XP=대화+제작물×15+받은좋아요×8+문서×3 로 `/stats/me/level` 에서 산정·저장 |
+| level_reached_at | DateTime(tz) | nullable | **신규** — 마지막 *레벨업* 시각. 공지 피드가 최근 7일 레벨업을 "○○님이 중급 Lv.1 달성!" 으로 노출 |
 | created_at | DateTime | * | |
 
 > **레거시 호환**: 기존 enum 값 `member` 는 의미상 `team_member`로 표시됩니다. 마이그레이션 시 `UserRole` enum 값은 보존하고 alias(`team_member = member`)를 두는 전략을 사용합니다.
@@ -135,9 +138,9 @@ erDiagram
 | *owner_user_id* | UUID FK users.id | * | |
 | name | String(200) | * | |
 | description | Text | | |
-| visibility | Enum `ChatbotVisibility` | * default=private | private / public |
+| visibility | Enum `ChatbotVisibility` | * default=private | private / public / shared |
 | system_prompt | Text | default `''` | |
-| model_id | String(200) | * | `openai/gpt-4o` 등 |
+| model_id | String(200) | * | `openai/gpt-5.5` 등 |
 | use_rag | Boolean | * default=true | |
 | rag_scope | Enum `ChatbotRagScope` | * default=linked_only | linked_only / owner_visible / team_all |
 | vectorstore_partition | String(64) | nullable | 향후 파티셔닝 키 |
@@ -163,11 +166,18 @@ erDiagram
 | category | String(64) | * | communication / search / data / productivity |
 | kind | Enum `ToolKind` | * | builtin / http / oauth / mcp |
 | parameters_schema | JSONB | default `'{}'` | JSON Schema |
-| default_config | JSONB | default `'{}'` | |
+| default_config | JSONB | default `'{}'` | `endpoint` 필드는 SSRF 가드 통과 후 저장 |
 | requires_credentials | Boolean | * default=false | |
 | icon_url | String(1024) | | |
 | is_active | Boolean | * default=true | |
+| author_user_id | UUID FK users.id NULL | | 사용자 커스텀 도구 작성자 (PR2 보안 정책) |
+| team_id | UUID FK teams.id NULL | | 사용자 도구의 소속 팀 |
+| source | Enum `ToolSource` | * default=system | `system` / `user` |
+| visibility | Enum `ToolVisibility` | * default=private | `private` (작성자만) / `team` (팀장+ 등록 필요) / `public` (팀장+ 등록 필요) |
+| upvote_count | Integer | * default=0 | `UserToolUpvote` aggregate |
 | created_at | DateTime | * | |
+
+> **보안**: `POST /tools/custom` · `PATCH /tools/{id}` 의 `endpoint` 는 `app/core/ssrf.py:assert_safe_url` 를 통과해야 하고, `visibility=team/public` 으로 등록·승격하려면 `team_admin` 이상이어야 합니다. 자세한 내용은 `docs/api.md` 의 Tools 섹션 참조.
 
 ### chatbot_tools
 | 컬럼 | 타입 | 제약 | 비고 |
@@ -293,6 +303,7 @@ class DocumentStatus(str, enum.Enum):
 class ChatbotVisibility(str, enum.Enum):
  private = "private" # 오너만 사용
  public = "public" # 같은 팀 전체가 사용
+ shared = "shared" # 같은 팀 + chatbot_team_access 에 등록된 추가 팀
 
 class ChatbotRagScope(str, enum.Enum):
  linked_only = "linked_only" # chatbot_documents에 연결된 문서만
@@ -601,3 +612,47 @@ erDiagram
 ```
 
 신규 6개 테이블 + `users.active_theme_id` FK 추가. 기존 테이블 영향 없음.
+
+---
+
+## 2026-06 스키마 변경
+
+이번 정비에서 추가/변경된 테이블·컬럼·enum. (`schema_upgrade.ensure_schema_upgrades` 가 기존 DB 에 멱등 적용; 신규 테이블은 `Base.metadata.create_all` 이 생성)
+
+### enum
+- `ChatbotVisibility` 에 `shared` 추가 — `ALTER TYPE chatbotvisibility ADD VALUE IF NOT EXISTS 'shared'`.
+
+### chatbot_team_access (신규) — 교차팀 공유 허용 팀
+| 컬럼 | 타입 | 제약 | 비고 |
+| ---- | ---- | ---- | ---- |
+| id | UUID | PK | |
+| chatbot_id | UUID | * FK chatbots.id ON DELETE CASCADE | |
+| team_id | UUID | * FK teams.id ON DELETE CASCADE | |
+| created_at | DateTime(tz) | server_default now() | |
+
+제약: UNIQUE(chatbot_id, team_id) = `uq_chatbot_team_access` · 인덱스 (chatbot_id), (team_id). `granted_by` 컬럼 없음.
+
+### documents.folder (신규 컬럼) — 사용자 폴더 트리(#9)
+| 컬럼 | 타입 | 제약 | 비고 |
+| ---- | ---- | ---- | ---- |
+| folder | VARCHAR(512) | NOT NULL DEFAULT '' | 가상 경로(예: `인사/2026`), '' = 미분류(루트). 디스크 적재도 이 경로 |
+
+### user_faq_upvotes / user_faq_comment_upvotes (신규) — FAQ 좋아요 dedup·토글
+| 컬럼 | 타입 | 제약 |
+| ---- | ---- | ---- |
+| user_id | UUID | PK · FK users.id CASCADE |
+| faq_id / comment_id | UUID | PK · FK chatbot_faqs.id / faq_comments.id CASCADE |
+| created_at | DateTime(tz) | server_default now() |
+
+### 제거
+- `chatbots.vectorstore_partition` (미사용 컬럼, ORM 매핑 삭제 — 기존 DB 컬럼은 무해하게 잔존 가능).
+
+```mermaid
+erDiagram
+    CHATBOTS ||--o{ CHATBOT_TEAM_ACCESS : "shared 공유"
+    TEAMS ||--o{ CHATBOT_TEAM_ACCESS : "허용된 팀"
+    USERS ||--o{ USER_FAQ_UPVOTES : "좋아요"
+    CHATBOT_FAQS ||--o{ USER_FAQ_UPVOTES : ""
+    USERS ||--o{ USER_FAQ_COMMENT_UPVOTES : "좋아요"
+    FAQ_COMMENTS ||--o{ USER_FAQ_COMMENT_UPVOTES : ""
+```

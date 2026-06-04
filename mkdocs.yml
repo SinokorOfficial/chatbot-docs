@@ -7,8 +7,7 @@ repo_url: https://github.com/ysh21368ai/chatbot-docs
 
 docs_dir: docs
 
-# 사내 전용 문서(admin / operations / deployment / README)는 본 공개 리포에 푸시하지 않습니다.
-# scripts/sync-from-private.sh 가 그 파일들을 자동으로 제외합니다.
+# 사내 전용 문서는 본 공개 리포에 푸시하지 않습니다 (sync 스크립트가 제외).
 
 nav:
   - 홈: index.md
@@ -32,6 +31,7 @@ nav:
       - 스킬 마켓플레이스: skills-marketplace.md
       - 도구: tools.md
       - 코드 인터프리터 샌드박스: sandbox.md
+      - 클로드 코드 모드: claude-code-mode.md
       - 브랜드 테마: themes.md
 
   - API: api.md
@@ -41,6 +41,10 @@ nav:
       - 디자인 철학: design-philosophy.md
       - 디자인 시스템: design-system.md
       - UX 원칙: ux-principles.md
+      - IA 가드 (메뉴 추가 룰): ia-rules.md
+      - 디자인 토큰 & 변화 내성 룰: design-tokens.md
+      - CTO 감사 보고서: audit-cto.md
+      - 전체 감사 보고서: full-audit.md
 
   - 권한:
       - RBAC: rbac.md
@@ -65,6 +69,15 @@ nav:
           - 워크플로 캔버스 (2D · 3D): code-walkthrough/frontend-workflow-canvas.md
           - 테마 시스템: code-walkthrough/frontend-theme.md
           - 디자인 시스템 (Stitch): code-walkthrough/frontend-design.md
+
+  - ADR (아키텍처 결정 기록):
+      - ADR-0007 · Claude Code 모드 분리·작업공간 영속: adr/0007-claude-code-mode-separation-and-workspace-persistence.md
+      - ADR-0006 · Progressive AI Workspace: adr/0006-progressive-ai-workspace.md
+      - ADR-0005 · Claude Code as Coding Agent: adr/0005-claude-code-as-coding-agent.md
+      - ADR-0004 · Self-Modifying Chatbot Tools: adr/0004-self-modifying-chatbot-tools.md
+      - ADR-0003 · Embedded IDE Workspace (Deferred · Builder Mode 로 흡수): adr/0003-embedded-ide-workspace.md
+      - ADR-0002 · User-Scoped AI Execution Platform: adr/0002-user-scoped-ai-execution-platform.md
+      - ADR-0001 · Sandbox Runtime & Lifecycle: adr/0001-sandbox-runtime.md
 
   - 변경 이력: changelog.md
 

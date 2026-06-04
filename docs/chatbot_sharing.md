@@ -1,6 +1,13 @@
 # 챗봇 교차팀 공유 (Cross-Team Sharing)
 
-> 특정 팀이 만든 RAG 챗봇을 **다른 팀도 사용**할 수 있게 하는 설계. 기존 `visibility ∈ {private, public}` 구조를 그대로 유지하고, `public` 의 도달 범위를 **"승인된 팀"**으로 제한합니다. **설계 단계** 문서이며 DB/코드 적용은 후속 작업입니다.
+> **✅ 실제 구현 (2026-06 기준) — 아래 §1~ 본문은 폐기된 초기 설계안이라 일부 어긋납니다. 진실은 이 박스.**
+>
+> **가시성 3값**: `private`(소유자만) / `public`(소유자 **팀 전체**, 교차팀 아님) / `shared`(소유자 팀 + 추가 승인 팀). enum 에 `shared` **추가됨**(`schema_upgrade` 가 `ALTER TYPE chatbotvisibility ADD VALUE 'shared'`).
+> - **추가 팀 지정**: 전용 `/shares` 엔드포인트 **없음**. `POST`·`PATCH /chatbots` 의 인라인 필드 **`extra_team_ids`** 로 처리(`visibility != shared` 면 백엔드가 자동 청소). 팀 목록은 `GET /team/list`(TeamLite, invite_code 비노출).
+> - **저장**: `chatbot_team_access`(chatbot_id, team_id, created_at — `granted_by` 컬럼 없음).
+> - **접근 판정**: `chatbot_service._user_can_access` — 소유자/같은 팀(비-private)/타 팀은 shared 이고 `chatbot_team_access` 에 등록된 경우.
+> - **교차팀 데이터 격리(중요)**: 타 팀 사용자가 shared 챗봇을 쓸 때 RAG 는 **챗봇에 연결된 문서만** 검색한다(`resolve_rag_scope_doc_ids` 가 요청자 팀≠소유 팀이면 스코프 무시하고 linked-only). 소유팀의 team_all/owner_visible 문서는 **노출되지 않음**.
+> - UI: 생성/편집 페이지 모두 팀 multi-select + "전체 팀(조직 전체)" 선택 토글.
 
 ## 1. 왜 필요한가
 
