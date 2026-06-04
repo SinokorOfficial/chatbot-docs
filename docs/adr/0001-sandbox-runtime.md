@@ -572,7 +572,7 @@ lazy create → active → idle → suspend → archive → delete
 
 - [`docs/full-audit.md`](../full-audit.md) §2 TOP 2 (sandbox RCE), §2 TOP 1 (SSRF — 본 ADR §8-3 default-deny 와 결합)
 - [`docs/sandbox.md`](../sandbox.md) (기존 sandbox 사양 — 본 ADR 로 갱신 대상)
-- [`backend/app/services/code_sandbox.py`](../../backend/app/services/code_sandbox.py) — Phase 0 수정 대상
-- [`backend/app/services/agent.py`](../../backend/app/services/agent.py) `_exec_tool` — code_interpreter 분기
+- `backend/app/services/code_sandbox.py` (코드 리포) — Phase 0 수정 대상
+- `backend/app/services/agent.py` (코드 리포) `_exec_tool` — code_interpreter 분기
 - Kata Containers — https://katacontainers.io
 - Firecracker — https://firecracker-microvm.github.io

@@ -37,7 +37,7 @@
 | POST | `/admin/teams` | super_admin | 팀 신규 생성 |
 | POST | `/admin/teams/{team_id}/rotate_invite` | super_admin | 초대코드 재발급 |
 
-팀장이 다른 팀 사용자를 조작하거나 본인 계정을 비활성화하면 400/403이 반환됩니다. 자세한 플로우는 [admin.md](./admin.md).
+팀장이 다른 팀 사용자를 조작하거나 본인 계정을 비활성화하면 400/403이 반환됩니다. 자세한 플로우는 관리자 문서(내부).
 
 ## Team (`/team`)
 

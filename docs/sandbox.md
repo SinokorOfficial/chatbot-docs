@@ -124,7 +124,7 @@ sequenceDiagram
 3. **자원 상한** — 메모리/CPU/PID 제한으로 DoS 회피.
 4. **임시 작업공간** — 실행 종료 직후 `shutil.rmtree`로 삭제. 재시도는 항상 새 디렉토리에서.
 5. **타임아웃** — `asyncio.wait_for` 후 `docker kill`로 강제 종료.
-6. **이미지 신뢰** — `chatbot-sandbox`는 사내에서 빌드한 이미지만 사용(배포 파이프라인에 이미지 빌드 단계 포함, [deployment.md](./deployment.md) 참조).
+6. **이미지 신뢰** — `chatbot-sandbox`는 사내에서 빌드한 이미지만 사용(배포 파이프라인에 이미지 빌드 단계 포함, 배포 문서(내부) 참조).
 7. **이미지 출력만 수집** — `.png/.jpg/.jpeg/.svg/.gif`만 base64 인코딩. 실행 결과로 생성된 임의 바이너리는 호스트로 유출되지 않음.
 
 ## 7. 실패 모드
