@@ -2,6 +2,18 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-05 — 애매한 쿼리 무한 루프 완화 (단단한 가드 6종)
+
+"쿼리가 애매할 때 LLM 이 도구 호출을 계속 반복하며 응답이 수십~수백초까지 늘어지는" 문제를 6개 가드로 완화.
+
+### Fixed
+- **같은 도구 반복 budget** — (tool_name, args) 정규화 후 3회 도달 시 강제 답변 모드(tool_choice=none) + 가드 메시지. 누적 도구 호출 8회 cap.
+- **모드별 max_steps + timeout** — 일반 채팅 6, 코드 모드 8 / per-step LLM 30s / 전체 wall-clock 90s (일반) / 180s (코드/챗봇).
+- **RAG reranker score floor** — 점수 3.0 미만 청크 제외(env RAG_SCORE_FLOOR). 노이즈만 잡힌 검색이 LLM 도구 호출 악순환을 유발하지 않게.
+- **시스템 프롬프트 clarifying-question 정책** — 애매하면 도구 호출 전에 *되묻기* 한 줄 우선. 같은 도구 두 번 호출 금지 명시.
+- **SSE keepalive 15s + 프런트 30s 무응답 배지** — 사용자가 hang 인지 빠르게 인지 + 클라이언트 abort 가능.
+- **클라이언트 disconnect cancel 전파** — 사용자가 떠나면 백엔드 LLM 호출도 즉시 중단(낙오된 비용 방지).
+
 ## 2026-06-05 — 포맷별 페이지 분리 / OCR 폴백 매트릭스 추가 (docx 한계 명시)
 
 “docx 첨부 시 챗 응답이 hang 걸린다” 사용자 보고를 계기로, *왜 docx 가 PDF 와 다르게 동작하는지* 한눈에 보이는 매트릭스를 [`docs/document_rag.md`](document_rag.md) §2 에 추가. 페이지 분리·citation 페이지 점프·Vision OCR 폴백 세 축으로 7개 포맷 비교. docx 한계 2가지(이미지 텍스트 무시 / citation 페이지 점프 불가) 와 해결 옵션 3가지(libreoffice 변환 / 페이지 break 마커 / 내장 이미지 OCR) 명시.
