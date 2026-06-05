@@ -41,6 +41,31 @@
 | `.hwp` (**신규**) | `olefile` 파서 또는 `pyhwp` | 아래 전략 참조 |
 | `.hwpx` (**신규**) | zipfile + XML (`section0.xml` `<hp:t>` 노드) | 내장 파서로 자체 구현 가능 |
 
+### 페이지 단위 분리 (citation 점프 가능 여부)
+
+`extract_text_pages()` 는 페이지·슬라이드·시트 단위로 분리해 *원문 인용 시 위치 점프* 에 사용된다. 모든 포맷이 페이지를 분리하지는 않는다 — 이미지 OCR 폴백 가능 여부와 함께 정리:
+
+| 확장자 | 페이지 분리 | citation 페이지 점프 | OCR 폴백 (Vision LLM) |
+| ------ | ----------- | -------------------- | --------------------- |
+| `.pdf` | ✅ `pypdf.pages` per-page (per-page try/except) | ✅ PdfViewer 페이지 jump | ✅ `_ocr_pdf` 가 네이티브 텍스트 < 20자 페이지만 Vision 호출 |
+| `.pptx` | ✅ 슬라이드별 분리 | ⚠️ “출처 N” 표시 (PPT 뷰어 없음) | ❌ |
+| `.docx` | ❌ **단일 페이지로 통합** | ❌ “출처 1” 로 고정 | ❌ (docx 안 이미지 무시) |
+| `.xlsx`/`.xls` | ❌ 단일 페이지 (시트 헤더 + 통합) | ❌ | ❌ |
+| `.hwp`/`.hwpx` | ❌ 단일 페이지 | ❌ | ❌ |
+| `.txt`/`.md`/`.csv`/`.html`/`.json` | ❌ 단일 페이지 | ❌ | ❌ |
+| 이미지 (`.png`/`.jpg` 등) | n/a (1장) | n/a | ✅ `_ocr_image_file` 항상 호출 |
+
+**시사점 — docx 한계 두 가지**
+
+1. docx 안 *이미지/그림* 의 텍스트는 추출되지 않는다. `python-docx` 는 InlineShape 의 binary 만 접근 가능하고 OCR 경로(`_ocr_pdf`/`_ocr_image_file`) 와 연결되어 있지 않다. 스캔본을 docx 로 들고 와도 텍스트는 0.
+2. RAG citation 클릭 시 docx 는 “출처 1” 로 고정 표시되고 `FileViewer` (코드 리포: `frontend/features/workspace/FileViewer.tsx`) 에서 PDF 처럼 페이지로 이동하지 못한다. 본문이 한 덩어리로 들어오기 때문.
+
+해결 옵션 (필요 시):
+
+- (A) docx → PDF 변환 후 동일 파이프라인 (libreoffice headless 필요, 무거움 + 변환 지연)
+- (B) docx 내장 “페이지 break” 마커 기반 분할 (정확도 낮음 — Word 가 페이지 위치를 런타임에 결정하므로 마커가 거의 없음)
+- (C) docx 안 이미지를 별도 추출해 Vision OCR (스캔 docx 만 효과, 현재 미구현)
+
 ### HWP 파싱 전략
 
 HWP/HWPX는 한국의 한컴 오피스 포맷입니다. 두 가지 접근법을 병행합니다:

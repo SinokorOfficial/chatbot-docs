@@ -2,6 +2,25 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-05 — 포맷별 페이지 분리 / OCR 폴백 매트릭스 추가 (docx 한계 명시)
+
+“docx 첨부 시 챗 응답이 hang 걸린다” 사용자 보고를 계기로, *왜 docx 가 PDF 와 다르게 동작하는지* 한눈에 보이는 매트릭스를 [`docs/document_rag.md`](document_rag.md) §2 에 추가. 페이지 분리·citation 페이지 점프·Vision OCR 폴백 세 축으로 7개 포맷 비교. docx 한계 2가지(이미지 텍스트 무시 / citation 페이지 점프 불가) 와 해결 옵션 3가지(libreoffice 변환 / 페이지 break 마커 / 내장 이미지 OCR) 명시.
+
+## 2026-06-04 (저녁) — 대화별 작업공간 격리 · 첨부 OCR 차단 · 단계별 지연 가시화
+
+수백초 걸리던 챗 응답과 “모든 프로젝트가 한 패널에 섞이는” 작업공간 누적 문제를 한 번에 해소.
+
+### Fixed
+- **대화별 워크스페이스 1:1 분리** — `_ensure_conversation_workspace()` 가 새 대화에 *사용자의 가장 최근 활성* workspace 를 재사용하던 lazy bind 를 제거. `get_or_create_default_workspace` → `create_workspace` 로 바꿔서 **신규 대화 = 신규 workspace**. iphone-calculator/ 와 mario-deluxe/backend/ 가 한 사이드 패널에 섞여 보이던 누적이 사라집니다. 이미 ws 가 묶인 과거 대화는 그대로 보존. [backend/app/features/chat/router.py]
+- **첨부 PDF Vision OCR 인라인 호출 차단(수백초 → 수초)** — `/chat/stream` 의 휘발성 첨부(`payload.files`) 에서 `parse_attachment_text` 가 Gemini Vision 페이지별 동기 호출을 돌려 큰 PDF 한 장이면 응답이 수백초까지 늘었습니다. `parse_attachment_text(allow_ocr=False)` 기본값으로 챗 경로에서는 **네이티브 텍스트 추출만** — OCR 이 정말 필요한 PDF 는 `/documents/upload` 인제스트 경로(백그라운드 잡)로 등록한 뒤 RAG 가 가져오게 합니다. 이미지(.png/.jpg) 첨부는 자동으로 `allow_ocr=True`. [backend/app/services/ingest.py, backend/app/features/chat/router.py]
+- **단계별 지연 가시화** — `_prepare_context` 에 `search_ms` / `rerank_ms` 분리 측정 로그, 챗 라우터 첨부 처리에 `첨부 파싱 X ocr=Y Nms len=L` 로그 추가. “어디서 막혔는지 모름” 상태에서 LLM 호출 vs RAG vs 리랭커를 즉시 구분 가능. [backend/app/features/chat/router.py]
+- **인제스트 OCR 동시성 4 → 8** — `_OCR_CONCURRENCY` 를 8 로 올려 대형 PDF 인제스트의 페이지 직렬 대기 감소. 챗 경로는 OCR 자체 차단이라 영향 없음, 문서 업로드 처리 속도만 ↑. [backend/app/services/ocr.py]
+- **workspace race-condition lock** — SELECT FOR UPDATE 로 동시 요청 시 dangling ws 방지. 같은 대화에 대해 `/chat/stream` 이 동시에 두 번 들어와도 `_ensure_conversation_workspace` 가 Conversation 행을 잠그고 직렬화되어, 중복 workspace 가 생성된 뒤 한쪽이 버려지는 dangling 상태가 사라집니다. [backend/app/features/chat/router.py]
+- **스캔본 PDF 첨부 사용자 힌트** — 네이티브 텍스트 추출 실패 시 LLM 에 안내 메시지 명시 (silent failure 제거). `parse_attachment_text` 가 빈 문자열을 돌려주는 스캔본 PDF 의 경우 LLM 프롬프트에 `[첨부 문서: X] ⚠️ 텍스트 추출 실패 — /documents 인제스트 사용` 을 끼워, 모델이 “파일 없음” 으로 오해하지 않도록 합니다. [backend/app/features/chat/router.py]
+- **workspace_id 조기 SSE 발행** — 신규 대화에서 WorkspacePanel 이 빈 트리로 깜빡이지 않게 ws_id 를 agent 시작 직후 push. `gen()` 이 `_ensure_conversation_workspace` 직후 `{"workspace_id": ...}` 이벤트를 즉시 emit 해서, 프론트는 첫 agent step 을 기다리지 않고 `GET /workspaces/{id}/files` 를 띄울 수 있습니다. [backend/app/features/chat/router.py]
+- **generation_ms 분리 측정** — record_llm meta 에 LLM 생성 시간만 분리 기록 (RAG/rerank 와 구분). 이미 분리된 `search_ms` / `rerank_ms` 와 짝을 맞춰 LLM streaming 구간만의 시간을 따로 집계 — 다음에 “수백초” 리포트가 들어왔을 때 어디서 시간을 썼는지 즉시 가릅니다. [backend/app/features/chat/router.py]
+- **OCR concurrency 8 → 6** — rate-limit headroom 25%. Gemini Vision 레이트리밋에 대비해 동시성을 8 에서 6 으로 내려 약 25% 헤드룸을 확보하면서도 인제스트 throughput 은 거의 유지. [backend/app/services/ocr.py]
+
 ## 2026-06-04 — 클로드 코드 모드 분리 · 작업공간 영속 · 타이포 일관화 · RAG 정확도 보강
 
 대규모 UX/백엔드 정비. 단순 채팅과 코드 작업을 모드로 가르고, 작업공간이 대화별로 살아나고, 화면 헤딩이 한 톤으로 정돈됩니다. RAG 는 무조건 검색을 멈추고 페이지 단위 인용으로 점프합니다.
