@@ -7,6 +7,7 @@
 "쿼리가 애매할 때 LLM 이 도구 호출을 계속 반복하며 응답이 수십~수백초까지 늘어지는" 문제를 6개 가드로 완화.
 
 ### Fixed
+- **후속 단단화 (6종)** — NameError 사전 차단(run_code import), asyncio.timeout(None) graceful, /chat/regenerate 의 chatbot_system_prompt 누락 fix, keepalive task try/finally + sentinel 보장, per-step LLM timeout 30s→60s + RAG floor 3.0→2.0 + lag 배지 30s→45s 조정, 가드 message UX 다듬기(접두사 제거).
 - **같은 도구 반복 budget** — (tool_name, args) 정규화 후 3회 도달 시 강제 답변 모드(tool_choice=none) + 가드 메시지. 누적 도구 호출 8회 cap.
 - **모드별 max_steps + timeout** — 일반 채팅 6, 코드 모드 8 / per-step LLM 30s / 전체 wall-clock 90s (일반) / 180s (코드/챗봇).
 - **RAG reranker score floor** — 점수 3.0 미만 청크 제외(env RAG_SCORE_FLOOR). 노이즈만 잡힌 검색이 LLM 도구 호출 악순환을 유발하지 않게.
