@@ -2,6 +2,23 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-08 (백로그 일괄 처리) — known-issues 9건 batch
+
+검증 워크플로우(adversarial verify) 백로그에서 처리 가능한 9건(#1,#3,#4,#5,#7,#8,#9,#10,#11)을 한 커밋으로 일괄 처리했다. 잔여 미처리는 제품 결정 대기 2건(#2 기존 대화 ws 마이그레이션 · #6 전체 ws 목록/orphan cleanup) + 의도된 wontfix 1건(#12). 자세한 매핑은 [known-issues.md](known-issues.md) 처리 완료 표 참고.
+
+### Fixed
+- **#1 첨부 PDF silent failure recheck** (`chat/router.py`) — direct-routing 경로 포함 모든 경로에서 추출 텍스트가 비면(`txt.strip()==""`) LLM·사용자에게 명시적 안내 문구를 주입. 이전엔 `len=0` 로그만 남고 문서 0건이 조용히 전달되던 문제 재발 차단.
+- **#7 per-step LLM timeout scope 구분** (`agent.py`) — 외부 `asyncio.timeout` 과 내부 `wait_for` 가 겹칠 때 CancelledError ↔ TimeoutError 를 별도 except 로 분리하고 구분 로깅. 어느 레이어에서 잘렸는지 추적 가능.
+- **#8 tool_call_counter contextvars 가드** (`agent.py`) — request-local 카운터를 `ContextVar` 로 강제. 향후 gen() 재사용 리팩토링 시 카운터 공유로 인한 budget 오염 위험 차단.
+- **#11 WorkspaceProvider 파일트리 GET race** (`WorkspaceProvider.tsx`) — 신규 ws 생성 직후 SSE `agent_start` 와 파일트리 GET 의 경합으로 "파일 없음" 빈 패널이 수초 노출되던 잔여 race 가드.
+
+### Added / Changed
+- **#3 업로드 진행률 실시간 표시** (`documents/router.py` + `documents/page.tsx`) — `/documents/{id}/status` (처리 페이지 수/전체) 엔드포인트 + 프론트 진행률 UI·폴링 단축. fire-and-forget 백그라운드 작업의 "OCR 3/120p" 가시화로 멈춤 착각 해소.
+- **#4 단계별 latency meta 분해** (`chat/router.py`) — `record_llm` 에 `meta={search_ms, rerank_ms, generation_ms}` 추가. 단일 `latency_ms` 로는 불가했던 RAG vs LLM latency 분해 가능.
+- **#5 RAG score floor 동적화** (`config.py` + `reranker.py`) — 고정 floor(2.0)를 쿼리 길이/모호성 기반 동적 floor 로 전환. "부분 관련"(score 4–6) 청크가 일괄 차단되던 문제 완화.
+- **#9 docx 페이지 분리 + 이미지 magic-byte 검사** (`ocr.py` + `document_parser.py`) — `is_image_filename` 의 suffix-only 한계를 magic byte 검사로 보강(확장자 없는 이미지 포착) + docx 페이지 분리.
+- **#10 OCR 동시성 설정화 + 429 백오프** (`ocr.py`) — `_OCR_CONCURRENCY` 설정화 + Gemini 무료 60rpm burst 대비 429 지수 백오프 재시도.
+
 ## 2026-06-08 (저녁) — 클로드 코드 모드 Direct Routing 전환
 
 - 후속 보안/안정 6종 — mkdir 실패 graceful + claude CLI 없을 시 명확한 에러 코드 + /chat/regenerate 첨부 지원 + realpath 기반 path traversal 차단 + chatbot.system_prompt CLI 인젝션 방어(--flag 라인/제어문자/4000자 cap) + 직행 모드 빈 상태 안내 카드(잡담 모드 끄기 힌트).
