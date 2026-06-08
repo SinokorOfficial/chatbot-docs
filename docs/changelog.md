@@ -2,6 +2,18 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-08 (저녁) — 클로드 코드 모드 Direct Routing 전환
+
+### Changed
+- **Direct routing** — 클로드 코드 모드 ON 시 사용자 메시지가 LLM 라우터를 거치지 않고 `run_claude_code_stream` 으로 직행. LLM 호출 비용 0, 환각 0(이전엔 "claude_code 도구가 환경에 없다"고 LLM 이 거절). 잡담도 그대로 claude_code 가 받아 적절히 답변.
+- **RAG/메모리/스킬/reranker 모두 스킵** — direct routing 분기에서 일찍 return, 불필요한 DB 조회/LLM 호출 제거.
+- **첨부 파일 → 워크스페이스 임시 저장** — `{workspace_dir}/_attachments/X` 로 write 후 prompt 에 경로 명시. claude_code 가 직접 read 가능.
+- **UI 정리** — 클로드 코드 모드 ON 시 RAG 토글 / reasoning effort / quick actions 숨김, placeholder "코드 작업을 자연어로 설명하세요. 모든 입력이 Claude Code 로 직행합니다."
+
+### Backward compatibility
+- `payload.claude_code_mode` 플래그 + `[클로드 코드 모드]` prefix 둘 다 지원.
+- 일반 채팅(모드 OFF) 경로는 변경 없음.
+
 ## 2026-06-08 — claude_code 도구 결과 LLM 환원 + 출처 dedup wiring + CLI 옵션 노출
 
 ### Fixed
