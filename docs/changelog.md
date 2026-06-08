@@ -2,6 +2,15 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-08 — claude_code 도구 결과 LLM 환원 + 출처 dedup wiring + CLI 옵션 노출
+
+### Fixed
+- **claude_code 결과가 다음 LLM step 에 안 돌아가던 버그** — run_claude_code_stream 분기에서 작업 요약(파일 변경 목록 + stdout 마지막 부분 + exit_code) 을 tool result 로 messages.append 하도록 보강. "도우미가 무얼 했는지 모르겠다" 답변 패턴 차단.
+- **citation 연속 중복 dedup 호출 누락** — dedupCitationsPerParagraph 함수는 정의되어 있었으나 ChatMessage 본문 렌더 경로에서 호출되지 않아 같은 [출처N] 이 단락에 여러 번 박혔던 노이즈를 정상 압축.
+
+### Added
+- **Claude Code 모드 Advanced 옵션 패널** — max_turns / append_system_prompt / add_dir / output_format / verbose / dangerously_skip_permissions(빨간 경고). LLM tool schema + 백엔드 runner signature 와 동시 노출. 위험 옵션은 default off + 명시 toggle 필요.
+
 ## 2026-06-05 — 애매한 쿼리 무한 루프 완화 (단단한 가드 6종)
 
 "쿼리가 애매할 때 LLM 이 도구 호출을 계속 반복하며 응답이 수십~수백초까지 늘어지는" 문제를 6개 가드로 완화.
