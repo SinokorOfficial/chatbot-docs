@@ -5,6 +5,7 @@
 ## 2026-06-08 (저녁) — 클로드 코드 모드 Direct Routing 전환
 
 - 후속 보안/안정 6종 — mkdir 실패 graceful + claude CLI 없을 시 명확한 에러 코드 + /chat/regenerate 첨부 지원 + realpath 기반 path traversal 차단 + chatbot.system_prompt CLI 인젝션 방어(--flag 라인/제어문자/4000자 cap) + 직행 모드 빈 상태 안내 카드(잡담 모드 끄기 힌트).
+- 직행 모드 답변의 줄바꿈/코드블록 보존 — remark-breaks 추가 + json.dumps(ensure_ascii=False) 일관 + SSE 라운드트립 단위 테스트. 사용자 보고: 답변에서 명령어/코드블록이 한 줄로 합쳐지던 현상 해소.
 
 ### Changed
 - **Direct routing** — 클로드 코드 모드 ON 시 사용자 메시지가 LLM 라우터를 거치지 않고 `run_claude_code_stream` 으로 직행. LLM 호출 비용 0, 환각 0(이전엔 "claude_code 도구가 환경에 없다"고 LLM 이 거절). 잡담도 그대로 claude_code 가 받아 적절히 답변.
