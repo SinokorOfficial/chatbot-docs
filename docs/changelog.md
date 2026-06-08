@@ -2,6 +2,11 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-08 — .env 비밀관리 안내 강화 + Claude Code 출력 기본 접힘
+
+- **.env.example Azure 비밀관리 안내 강화** — 키 절대 커밋 금지 명시. Azure 배포 시 파일을 올리지 말고 App Service 애플리케이션 설정(App Settings) 또는 Key Vault 로 각 키를 이식하도록 안내. 자세한 절차는 docs/deployment.md "환경변수 / 비밀 관리 (Azure)" 참고.
+- **Claude Code 장황 출력 기본 접힘** — 클로드 코드 모드의 장황한 도구 실행 로그/출력을 기본 접힘 상태로 표시하고 클릭 시 펼치도록 변경. 일반 채팅(모드 OFF) 출력은 영향 없음.
+
 ## 2026-06-08 (백로그 일괄 처리) — known-issues 9건 batch
 
 검증 워크플로우(adversarial verify) 백로그에서 처리 가능한 9건(#1,#3,#4,#5,#7,#8,#9,#10,#11)을 한 커밋으로 일괄 처리했다. 잔여 미처리는 제품 결정 대기 2건(#2 기존 대화 ws 마이그레이션 · #6 전체 ws 목록/orphan cleanup) + 의도된 wontfix 1건(#12). 자세한 매핑은 [known-issues.md](known-issues.md) 처리 완료 표 참고.
