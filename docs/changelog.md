@@ -2,6 +2,10 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — 프런트엔드 테스트 인프라(Vitest+RTL) 도입
+
+프런트엔드 테스트 인프라(Vitest+RTL) 도입 — citation/markdown 헬퍼·collapse 로직 유닛 테스트, CI frontend job 에 npm test 추가.
+
 ## 2026-06-09 (실버그 수정) — 워크스페이스 목록/상세 HTTP 500 해소
 
 ### Fixed
