@@ -2,6 +2,26 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — UX — 클로드코드 모드 시각 정합 + MCP 자격증명 데이터기반 폼
+
+클로드코드 모드 시각 정합(디자인 토큰 통일·lag 배지 톤다운·진행 가시화) + MCP 자격증명 데이터기반 구조화 폼(가이드 보기, tools.yaml 갱신=코드 무변경). "코드 모드"라는 이유만으로 별색·별도 둥근모서리·뿌연 점으로 *튀던* 시각 요소를 시스템 카드의 디자인 토큰 리듬에 정렬하고, 자격증명 등록을 raw JSON 작성에서 라벨드 동적 폼으로 바꿨다. 모든 변경은 a11y 회귀(axe) 통과.
+
+### Changed (시각 정합 — Claude Code 모드)
+- **디자인 토큰 통일** — 클로드 코드 배너·복귀 버튼·빈 상태 카드·예시 칩 등이 제각각 쓰던 `rounded-xl/2xl/full` 하드코딩과 `var(--stroke)` 보더를 시스템 토큰(`--stitch-radius-card/input/pill`, `--stitch-whisper-border`, `--stitch-whisper-shadow`, `--surface-muted`)으로 정렬. 빈 상태 카드는 `stitch-card` 클래스를 입혀 surface/shadow/보더 리듬을 시스템 카드와 일치시키고, "코드 모드" 표시는 *절제된 accent 보더 1단계*(별색·별도 배경 제거)로만 남겼다. [frontend/app/(workspace)/chat/page.tsx]
+- **lag(stall) 배지 톤다운** — 30초→45초 임계, 의미색을 danger(쨍한 빨강 🐌)에서 stall 토큰(warning 계열·차분한 호박색 ⏳)으로 변경. 깊은 추론은 45초+가 *정상 범위*일 수 있어 "에러"가 아니라 "오래 걸림" 신호임을 색·문구·작은 pill 로 표현하고, 무응답 경고 상세는 `title` 로만 노출. 신규 토큰 `--status-stall / -soft / -border`(라이트·다크 모두 warning 계열에 정렬) 도입. [frontend/app/globals.css, frontend/app/(workspace)/chat/page.tsx]
+- **진행 가시화(dead time 제거)** — `claude_code` direct routing 이 수십 초 도는 동안 ① 도구가 아직 안 잡힌 시작 직후(agent_start)와 ② 도구 호출 *사이의 추론 gap* 에서 작업 로그가 멈춘 것처럼 보이던 구간을, 살아있는 "준비/추론 중…" 행(`ReasoningRow`, 점멸 점 3개 + 텍스트, `role="status"`/`aria-live="polite"`)으로 메웠다. 진행 중 새 단계·추론 행이 추가되면 최신 활동이 보이도록 하단 자동 스크롤(완료 후엔 따라가지 않음). "생각 중" 텍스트+점을 `thinking-pill` 로 묶고 점 색을 65%→90%로 또렷하게. [frontend/features/workspace/ToolExecutionLog.tsx, frontend/app/globals.css]
+
+### Changed (MCP/외부 도구 자격증명 — 데이터기반 폼)
+- **데이터기반 구조화 폼(`CredentialForm`)** — 자격증명 등록을 raw JSON textarea 에서 *라벨드 동적 입력 폼* 으로 전환. 비밀필드는 표시/숨김 토글, 필수 필드 검증, 빈 선택 필드 자동 제외. 폼 정의는 `tools.yaml` 의 `credential_schema` 에서 오고, 스키마가 없으면 기존 JSON textarea 로 자동 폴백(하위호환). 제출 시 plain object 로 조립 → 백엔드 계약(`{tool_slug, data}`) 불변. [frontend/features/tools/CredentialForm.tsx, frontend/app/(workspace)/tools/page.tsx]
+- **[자격증명 발급 방법 보기] 가이드 토글** — `tools.yaml` 의 `credential_guide`(단계 번호목록·공식문서 링크·주의 note)를 폼 안 접이식 패널로 노출. 가이드/URL 을 *데이터(YAML)* 에 두어 **갱신=tools.yaml 수정(코드 무변경)** 으로 처리한다. [frontend/features/tools/CredentialForm.tsx]
+- **백엔드 메타데이터 직렬화** — `tools.yaml`(SSOT)의 `credential_schema`/`credential_guide` 를 `catalog_loader.tool_credential_meta()` 로 slug 매핑하고, `/tools` 라우터가 ORM 객체에 `setattr` 로 덧붙여 `ToolOut`(신규 `CredentialFieldOut`/`CredentialGuideOut` 스키마)로 직렬화. DB 컬럼이 아니라 `user_upvoted`/`author_name` 과 동일 패턴이며, 사용자 등록 도구는 None → 프론트엔드 JSON 폴백. ★ 자격증명 *값* 은 절대 포함하지 않음 — 폼 정의/발급 안내 메타데이터만 노출. [backend/app/services/catalog_loader.py, backend/app/features/tools/router.py, backend/app/schemas.py]
+- **tools.yaml 자격증명 메타 작성** — gmail.send·kakao.send_memo·google_calendar.create_event·slack.post 4개 OAuth 도구에 `credential_schema`/`credential_guide` 추가(발급 단계·doc_url·만료/토큰 종류 note 포함). [backend/config/tools.yaml]
+
+### Tests / Docs
+- **ToolExecutionLog 진행 가시화 회귀 테스트**(`frontend/features/workspace/__tests__/ToolExecutionLog.test.tsx`) — agent_start 직후 빈 화면 대신 준비 신호 노출, 도구 사이 추론 gap 에서 "추론 중…" 행 노출, scrollIntoView 미구현 환경(jsdom) 방어를 강제. [+3 tests]
+- **자격증명 가이드 작성법 문서**(`docs/tools.md`) — `tools.yaml` 의 `credential_schema`/`credential_guide` 필드 작성법(코드 무변경 운영) 추가.
+- 검증: `frontend` `tsc --noEmit` exit 0 + `vitest run` **47 passed**(a11y 8건 포함), 변경 백엔드 `.py` 3건 AST 파싱 OK, `main.py` touch→reload 후 `/health` 200(`{"ok":true}`), `backend` `pytest tests/test_tools_custom.py tests/test_resources.py` **16 passed**.
+
 ## 2026-06-09 — UX 흐름 — 핵심 여정의 다음-액션 갭 9건 보강(빈 상태 CTA·완료 후 다음 단계 안내·온보딩 연속성)
 
 UX 흐름 — 핵심 여정의 다음-액션 갭 9건 보강(빈 상태 CTA·완료 후 다음 단계 안내·온보딩 연속성). 각 화면이 *독립적으로* 끝나버려 "다음에 뭘 해야 하지?" 가 끊기던 지점을, 죽은 토스트가 아니라 *실제 동작하는 링크/딥링크* 로 이어지게 보강했다. 모든 새 UI 는 a11y 회귀(axe) 통과.

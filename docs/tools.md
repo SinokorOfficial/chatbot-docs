@@ -110,6 +110,55 @@ tool_registry.dispatch("gmail.send", args, ctx)
 - 로깅에서 자격증명이 출력되지 않도록 `RequestLoggingMiddleware`가 `/tools/credentials` 경로는 body 스킵.
 - 권한: 자격증명 CRUD는 본인 계정 대상만. 팀 공용 자격증명은 `team_admin` 이상만 등록/수정 가능.
 
+## 7-1. 자격증명 입력 폼 / 발급 가이드 작성법 (tools.yaml 데이터기반)
+
+`requires_credentials=true` 도구의 자격증명 등록 화면은 **`backend/config/tools.yaml` 의 데이터** 로 동적 렌더됩니다. 프론트엔드(`CredentialForm`)가 라벨드 입력 폼과 발급 가이드를 그려주므로, 사용자는 raw JSON 을 직접 작성할 필요가 없습니다.
+
+핵심: **가이드/URL/필드는 데이터(YAML)에 둡니다. 갱신은 `tools.yaml` 수정만으로 끝나며 코드 변경이 없습니다.** (`catalog_loader.tool_credential_meta()` 가 slug 로 매핑 → `/tools` 라우터가 `ToolOut` 에 직렬화 → 프론트엔드가 폼/가이드 렌더.)
+
+### `credential_schema` — 입력 폼 필드 정의
+
+도구 항목에 `credential_schema` 리스트를 추가하면, 각 항목이 라벨드 입력 필드 한 칸이 됩니다.
+
+```yaml
+- slug: slack.post
+  display_name: Slack 메시지 보내기
+  requires_credentials: true
+  credential_schema:
+    - key: bot_token          # 저장될 자격증명 키 (백엔드 data 객체의 키)
+      label: 봇 토큰 (Bot User OAuth Token)   # 화면 라벨
+      type: password          # text | password | url  (password 는 표시/숨김 토글 + 마스킹)
+      required: true          # 기본 false. true 면 미입력 시 제출 차단
+      placeholder: xoxb-...    # 입력칸 placeholder (선택)
+```
+
+- `key` 만 필수, 나머지는 선택(누락 시 `label=key`·`type=text`·`required=false`).
+- 비밀값은 `type: password` 로 두면 마스킹 + [표시/숨김] 토글이 붙습니다.
+- 빈 선택(`required: false`) 필드는 제출 시 자동 제외됩니다.
+- ★ `credential_schema` 를 통째로 **생략하면** 프론트엔드는 기존 raw JSON textarea 로 자동 폴백합니다(하위호환). 사용자가 직접 등록한 커스텀 도구도 메타가 없으므로 JSON 폴백.
+
+### `credential_guide` — 발급 안내 (선택)
+
+`credential_guide` 를 추가하면 폼 안에 접이식 [자격증명 발급 방법 보기] 패널이 생깁니다.
+
+```yaml
+  credential_guide:
+    steps:                    # 한국어 단계 — 번호목록으로 렌더
+      - "Slack API(api.slack.com/apps)에서 [Create New App]으로 앱을 생성합니다."
+      - "[OAuth & Permissions > Bot Token Scopes]에 chat:write 를 추가합니다."
+      - "[Install to Workspace]로 설치하고, 표시되는 xoxb- 토큰을 복사합니다."
+    doc_url: https://api.slack.com/messaging/sending   # [공식 문서 열기 ↗] 링크 (선택)
+    note: "토큰은 xoxb- 로 시작하는 Bot User OAuth Token 이어야 합니다."  # 주의 박스(호박색)로 강조 (선택)
+```
+
+- `steps`·`doc_url`·`note` 모두 선택이며, 셋 중 하나라도 있으면 가이드 토글이 노출됩니다.
+- 발급 절차가 바뀌면(예: 콘솔 메뉴 위치 변경, 새 scope 요구) **이 YAML 만 고치면** 곧바로 반영됩니다.
+
+### 보안 불변식
+
+- `credential_schema`/`credential_guide` 는 **폼 정의·발급 안내 메타데이터일 뿐**, 자격증명 *값* 은 절대 포함하지 않습니다. `/tools` 응답에도 값이 직렬화되지 않습니다.
+- 입력된 값은 기존 계약 그대로 `POST /tools/credentials` 의 `{tool_slug, data}` 로 전송되어 저장됩니다(7장 보안 규약 적용).
+
 ## 8. MCP 연동 방향
 
 Anthropic의 MCP 프로토콜 기반 커넥터(예: Claude.ai Gmail MCP)를 `kind=mcp` 로 등록하면 동일한 인터페이스로 호출 가능합니다. 이 경우 `tool.parameters_schema`는 MCP 서버가 반환한 스키마를 그대로 저장합니다.
