@@ -2,6 +2,10 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — Playwright E2E 스모크 도입
+
+Playwright E2E 스모크 도입 — 로그인/네비게이션/모드토글/슬래시메뉴 핵심 플로우, LLM 전송은 E2E_LLM gated, 별도 e2e.yml CI(workflow_dispatch).
+
 ## 2026-06-09 — 프런트엔드 테스트 인프라(Vitest+RTL) 도입
 
 프런트엔드 테스트 인프라(Vitest+RTL) 도입 — citation/markdown 헬퍼·collapse 로직 유닛 테스트, CI frontend job 에 npm test 추가.
