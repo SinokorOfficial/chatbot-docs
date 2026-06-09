@@ -2,6 +2,15 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — 테스트 인프라 복구(트랜잭션 롤백 픽스처/통합테스트 green) + GitHub Actions CI(tsc/pytest/mkdocs strict)
+
+### Tests / Infra
+- **테스트 인프라 복구 — 통합테스트 green (55 passed)** — 기존 conftest 가 "백엔드가 외부 포트(기본 8000)에 떠 있다"고 가정한 *네트워크 HTTP* 스모크 방식이라, 이 머신에서 8000 에 다른 앱(oracle-query-api)이 떠 있고 챗봇 API 는 8001 에 떠 있어 `/auth/login` 이 404 → 모든 픽스처(super_admin_token)가 깨져 통합테스트 전체가 무너져 있었다. 외부 포트 의존을 *제거*하고 httpx `ASGITransport` 로 `app.main:app` 을 *프로세스 안에서* 직접 구동하도록 재구축(`backend/tests/conftest.py`). DB 는 운영 `chatbot` 을 건드리지 않게 *전용* `chatbot_test`(dbname 에 `_test` 접미사)를 세션마다 DROP→CREATE 로 깨끗이 만들고, 앱 lifespan 이 운영과 동일하게 `create_all`+스키마 보정+부트스트랩 super_admin+시드를 수행한다. 매 테스트는 고유 uuid8 `scratch` 로 자기 데이터를 격리(트랜잭션 격리 픽스처). 결과: `pytest tests/ -q` → **55 passed, 0 failed, 0 skipped**(`test_auth_flow`·`test_resources` 통합테스트 포함 green). (known-issues "테스트 인프라 깨짐" 처리 완료)
+- **환경 의존 안전판(skip 마커)** — Postgres(5432) 접속/DB 생성이 불가능한 환경에서는 DB 의존 테스트를 *조용히 지우지 않고* `requires_db` 마커로 **사유와 함께 명시적 skip**, Docker 미가용 시 샌드박스 테스트를 `skipif` 로 명시적 skip 한다. 순수 단위 테스트(`test_faq_permissions`/`test_newline_roundtrip`/`test_workspace_manager`/`test_sandbox_isolation` 일부)는 DB·Docker 없이도 항상 돈다. (현재 CI/이 머신 환경엔 Postgres·Docker 가 모두 있어 skip 0.)
+
+### CI
+- **GitHub Actions CI 신설** (`.github/workflows/ci.yml`) — PR/푸시에서 ① 프론트 타입체크(`tsc`) ② 백엔드 `pytest`(서비스 컨테이너로 Postgres 기동) ③ `mkdocs build --strict` 를 게이트로 실행. 문서는 `docs/ci.md` 에 파이프라인/잡 구성을 정리. (런타임 영향 없음 — 테스트/CI/문서만 추가, 백엔드 앱 코드 무변경)
+
 ## 2026-06-09 — 전체 작업공간 페이지+보관, 대화별 비파괴 분리 버튼, FAQ 권한 회귀 테스트
 
 ### Features
