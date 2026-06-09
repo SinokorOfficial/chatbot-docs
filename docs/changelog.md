@@ -2,6 +2,15 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — 접근성 자동 회귀 테스트(axe-core) 도입
+
+접근성 자동 회귀 테스트(axe-core) 도입 — 핵심 컴포넌트 a11y 위반 2건 수정 + Vitest 에 통합(CI 자동 포함).
+
+### Tests / Fixed
+- **axe-core a11y 회귀 테스트** (`frontend/__tests__/a11y/a11y.test.tsx`) — ChatMessage / SlashCommandMenu / DocumentPickerModal / 공용 UI(LikeButton·Button·Pagination·Alert)를 RTL 렌더 후 axe 로 스캔해 위반 0 을 강제. jsdom 에서 의미 없는 `color-contrast`·`region` 룰은 비활성화(실제 대비는 e2e·디자인 토큰에서 검증). vitest-axe matcher(`toHaveNoViolations`)를 `vitest.setup.ts` 에 등록하고 타입 보강(`frontend/vitest-axe.d.ts`).
+- **a11y 위반 2건 수정(동작/시각 불변)** — `features/chat/SlashCommandMenu.tsx`: listbox 내부 `ul`/`li` 에 `role="presentation"` 부여(option 의 직접 부모가 listbox 구조를 깨지 않도록). `features/chatbots/DocumentPickerModal.tsx`: 검색 입력에 `aria-label="파일명으로 문서 검색"` 추가(라벨 없는 입력 위반 해소).
+- CI: 기존 `ci.yml` frontend job 이 `npm test`(vitest run)를 돌리므로 a11y 테스트가 자동 포함된다 — 별도 CI 수정 불필요. 결과: `vitest run` → **38 passed**(a11y 8 포함), `tsc --noEmit` exit 0.
+
 ## 2026-06-09 — Playwright E2E 스모크 도입
 
 Playwright E2E 스모크 도입 — 로그인/네비게이션/모드토글/슬래시메뉴 핵심 플로우, LLM 전송은 E2E_LLM gated, 별도 e2e.yml CI(workflow_dispatch).
