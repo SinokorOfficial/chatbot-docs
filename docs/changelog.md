@@ -2,6 +2,24 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — 종합 감사 (검증된 버그/보안/성능/UX 수정)
+
+전체 코드베이스 종합 감사. 직접 코드 확인으로 *검증된* 항목만 자동 적용했고, 제품 결정·대규모 리팩토링 항목은 [known-issues.md](known-issues.md) "2026-06-09 종합 감사" 섹션에 보류 사유와 함께 기록했다. (8파일 변경)
+
+### Security
+- **CORS 하드닝** (`main.py`) — 하드코딩된 사내 내부 IP 출처 제거 → `BACKEND_ALLOWED_ORIGINS`(쉼표 구분) env 기반 출처 + 미설정 시 로컬 dev 기본값. `allow_methods=["*"]` → 명시적 화이트리스트(`GET/POST/PUT/DELETE/OPTIONS`).
+- **요청 로그 민감정보 마스킹** (`request_logging.py`) — 쿼리스트링 로깅 시 `password/token/api_key/secret/auth/apikey/access_token/refresh_token` 값을 `<REDACTED>` 로 마스킹.
+- **문서 Path traversal 방어 강화** (`documents/router.py`) — `clean_folder` 절대경로 거부 + 업로드 저장 직후 `resolve()`·`is_relative_to(upload_root)` 검증(탈출 시 unlink+500) + render/download 엔드포인트 동일 검증(`ValueError`→403, 심볼릭 링크 회피).
+
+### Performance
+- **regenerate hot-path 인덱스** (`db/models.py`) — 복합 인덱스 `ix_messages_conv_role_created(conversation_id, role, created_at)` 추가로 role 필터 오버헤드 제거.
+- **임베딩 API 타임아웃** (`embeddings.py`) — `asyncio.wait_for(timeout=EMBEDDING_API_TIMEOUT_S, 기본 10s)` 로 무한 hang 차단, 초과 시 `EmbeddingTimeoutError`.
+- **재랭커 재시도** (`reranker.py`) — 429/Timeout/5xx 지수 백오프 재시도(3회, 1s→2s→4s, `ocr.py` 패턴 재사용). 비재시도 계열(BadRequest/Auth)은 즉시 실패.
+
+### UX / Clarity
+- **클립보드 복사 훅 통합** (`ChatMessage.tsx`) — `CodeBlock`/`ChatMessage` 중복 복사 로직을 `useCopyToClipboard` 공용 훅으로 통합 + `.catch()` 로 권한 거부 시 silent unhandled rejection 방지.
+- **`max_attachment_parse_chars` 의미 주석** (`config.py`) — 파싱된 텍스트 상한 ≠ 업로드 바이트 상한임을 명시.
+
 ## 2026-06-08 — .env 비밀관리 안내 강화 + Claude Code 출력 기본 접힘
 
 - **.env.example Azure 비밀관리 안내 강화** — 키 절대 커밋 금지 명시. Azure 배포 시 파일을 올리지 말고 App Service 애플리케이션 설정(App Settings) 또는 Key Vault 로 각 키를 이식하도록 안내. 자세한 절차는 docs/deployment.md "환경변수 / 비밀 관리 (Azure)" 참고.
