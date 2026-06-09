@@ -2,6 +2,20 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — 성능 — latency meta 기반 병목 측정 + 안전 최적화(요약)
+
+성능 — latency meta 기반 병목 측정 + 안전 최적화(요약). chat 라우터가 적재하는 `search_ms`/`rerank_ms`/`rag_status` meta 로 chat·RAG·document 경로의 구간 병목을 특정하고, **결과 불변**이 검증된 최적화만 적용했다.
+
+### Performance / Changed
+- **RAG 검색 병렬화(`search_ms` 단축)** — dense(HNSW)·lexical(tsvector)는 상호 독립 read-only SELECT 이므로 `asyncio.gather` 로 병렬 실행. 단 동일 `AsyncSession` 동시 사용 금지(`InterfaceError: another operation is in progress`)라 lexical 은 전용 단기 세션(`_lexical_top_own_session`, 같은 풀 공유)에서 돌린다. RRF 입력 리스트 동일 → **랭킹 결과 불변**, 두 DB 왕복의 max 만큼만 소요. [backend/app/services/chatbot_rag.py]
+- **인제스트 임베딩 배치 64(API 왕복 절감)** — `embed_texts(..., batch_size=64)`. 임베딩은 입력별 독립이라 배치 그룹 무관하게 **벡터 결과 동일**, OpenAI 요청당 입력 한도(2048) 내라 rate-limit 위험 없이 왕복만 절반(32→64). 인제스트(배치) 경로 전용. [backend/app/services/ingest.py]
+- **RAG 가속 인덱스 명시 보장(seq-scan 회귀 차단)** — `create_all` 은 신규 테이블 Index 만 만들고 운영 중이던 `document_chunks` 엔 추가 안 함 → 누락 시 HNSW/tsvector 가 seq-scan 으로 떨어져 `search_ms` 급증. `models.DocumentChunk.__table_args__` 와 동일 정의의 `ix_document_chunks_embedding_hnsw`(HNSW m=16/ef_construction=64)·`ix_document_chunks_content_tsv`(GIN)를 `CREATE INDEX IF NOT EXISTS` 로 멱등 보장. [backend/app/services/schema_upgrade.py]
+- **캐시 멀티테넌시 키 규약(가드레일)** — 전역 단일 키 공간 캐시라 테넌트별 값 캐싱 시 호출부가 키에 스코프(`team:{id}`/`user:{id}`)를 박도록 규약화(교차오염 방지). 현 유일 호출부 `themes:list:active` 는 공개 전역 목록이라 스코프 불필요. [backend/app/services/cache.py]
+
+### Docs
+- **`docs/perf.md` 신규** — latency meta 측정 방법·관측 병목·적용 최적화(A~D)·**남은(care-needed) 항목**(RAG 재랭킹 조건부 skip/후보 축소·2단 캐스케이드, DB 복합 인덱스 `(document_id, chunk_index)`·lexical 경로 GIN 합성) 정리. mkdocs nav `시스템 > 성능 프로파일링` 등록.
+- 검증: 변경 백엔드 `.py` 4건 AST 파싱 OK, `pytest tests/ -q` → **138 passed**, `main.py` touch→reload 후 `/health` 200(`{"ok":true}`). 프런트엔드 변경 없음 → tsc/test 생략.
+
 ## 2026-06-09 — claude_code 실 CLI(2.1.169) 정합
 
 claude_code 실 CLI(2.1.169) 정합 — 유추 옵션 `--max-turns` 제거→`--max-budget-usd`, 추론강도 실제 `--effort`(low~max)로 교정, 앱 MCP/스킬을 `--mcp-config`/`--plugin-dir` 로 세션 스코프 연동(멀티테넌트 격리).

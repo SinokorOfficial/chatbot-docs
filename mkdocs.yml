@@ -19,6 +19,7 @@ nav:
       - 모듈 맵: modules.md
       - 서비스 카탈로그: services.md
       - 확장성·성능: scaling.md
+      - 성능 프로파일링: perf.md
 
   - 데이터:
       - ERD · 스키마: erd.md
