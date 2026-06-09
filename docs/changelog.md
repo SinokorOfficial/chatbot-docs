@@ -2,6 +2,29 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 (라운드3) — untouched-surface 감사 + 부트스트랩 안전판 + 스키마 업그레이드 하드닝
+
+라운드1·2 가 손대지 않았던 표면(미감사 라우터/서비스/페이지)을 추가 감사하고, 남아 있던 보류 2건(#4 #5)을 *제품/배포 결정 없이 가능한 비파괴 안전판·하드닝* 범위로 처리했다. 검증된 안전 수정만 자동 적용했고, 신규 발견 중 정책 결정이 필요한 IDOR(faqs/router.py)와 과장/무효로 판명된 finding 들은 [known-issues.md](known-issues.md) "라운드3" 표에 보류 사유와 함께 기록했다. (백엔드 7파일 + 프론트 4파일)
+
+### Security
+- **부트스트랩 운영 안전판(#5)** (`core/config.py`) — `app_env`("dev"/"prod"/"production") 도입 + `_warn_bootstrap_in_production` validator. 운영 환경에서 `BOOTSTRAP_ADMIN` 활성 시 *부팅을 막지 않고 경고만* 남기는 비파괴 안전판(운영 중 부팅 차단은 위험). 기본 자격 생성·전달 정책 자체는 제품 결정 영역으로 미변경.
+- **인증 키 등록 에러 메시지 leak 차단** (`features/auth/router.py`) — BYOK 등록 시 `KeyVaultUnavailable`/`ValueError` 원문 예외를 503/400 에 그대로 노출하던 것을 사용자용 고정 문구로 치환(내부 구현/Vault 상태 누출 방지).
+- **웹 검색 결과 URL 스킴 검증** (`services/web_search.py`) — 결과 URL 을 `urlparse` 로 http/https + netloc 검증, 위험 스킴(javascript: 등) 결과 제외 + 경고 로깅.
+- **CORS 헤더 화이트리스트** (`main.py`) — `allow_headers` `*` → 명시(`Content-Type/Authorization/X-Request-ID`).
+
+### Reliability
+- **스키마 자동 업그레이드 하드닝 — silent-failure 가시화(#4)** (`services/schema_upgrade.py`) — 기존엔 모든 실패를 한 줄 `warning` 으로 뭉뚱그려 *진짜 실패*가 "이미 적용됨" 노이즈에 묻혔다. asyncpg SQLSTATE 기반으로 idempotent("이미 존재" 류: 42701/42P07/42710 등)는 `debug`, 진짜 실패는 statement 식별자 + 원문 오류를 `error` 로 분리하고, 전체 실행 후 적용/멱등스킵/실패 카운트를 `info`(실패 0)/`warning`(실패≥1, 실패 문 나열)으로 요약. **전면 Alembic 도입은 향후 과제로 유지**(배포 파이프라인·롤백·기존 DB 백필과 얽혀 단독 코드 수정 범위를 넘음).
+- **DB 연결 풀 정리** (`main.py`) — lifespan 종료 시 `engine.dispose()`(예외 격리)로 reload/재기동 시 커넥션 누수 방지.
+- **외부 시세 API 비-200 검증** (`services/stock.py`) — 시세/차트 호출에 `raise_for_status()` 추가 — HTML 에러 페이지를 JSON 으로 파싱하다 모호하게 실패하던 경로 차단.
+
+### Performance
+- **문서 스코프 조회 인덱스** (`db/models.py`) — `documents(team_id)`·`(owner_user_id)`·`(team_id, owner_user_id)` 복합 + `document_shares.user_id` 인덱스 추가(팀/소유자 스코프 조회 풀스캔 제거).
+
+### UX / Bug
+- **documents 폴더 전환 race 가드** (`documents/page.tsx`) — `refresh()` 에 토큰 가드 추가 — 폴더를 빠르게 전환할 때 오래된 응답이 최신 목록을 덮어쓰던 stale-response race 차단.
+- **React 리스트 key 안정화** (`notices/page.tsx`·`team/page.tsx`) — index key → `notices` Fragment key·`team` 메시지 `id` key 로 교체(재정렬 시 리렌더 버그 방지).
+- **로드 실패 표시 / 로딩 스켈레톤** (`chatbots/page.tsx`·`team/page.tsx`) — 팀 목록·`/auth/me` 로드 실패 인라인 에러 표시 + 팀 메시지 로딩 스켈레톤.
+
 ## 2026-06-09 (라운드2) — 종합 감사 보류분 7건 해소
 
 라운드1 에서 "제품 결정/대규모 리팩토링"으로 보류했던 항목 중 신뢰 경계·근본 fix 가 확정된 7건(#1 #2 #3 #6 #7 #8 #9)을 처리했다. 남은 보류는 #4(Alembic 마이그레이션 도입)·#5(부트스트랩 관리자 기본값) 2건뿐이며 둘 다 제품/배포 결정 선행이 필요하다. 매핑·보류 사유는 [known-issues.md](known-issues.md) "라운드2 처리 완료 / 남은 보류" 참고. (6파일 변경)
