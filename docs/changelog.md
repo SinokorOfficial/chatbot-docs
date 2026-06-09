@@ -2,6 +2,25 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 (라운드2) — 종합 감사 보류분 7건 해소
+
+라운드1 에서 "제품 결정/대규모 리팩토링"으로 보류했던 항목 중 신뢰 경계·근본 fix 가 확정된 7건(#1 #2 #3 #6 #7 #8 #9)을 처리했다. 남은 보류는 #4(Alembic 마이그레이션 도입)·#5(부트스트랩 관리자 기본값) 2건뿐이며 둘 다 제품/배포 결정 선행이 필요하다. 매핑·보류 사유는 [known-issues.md](known-issues.md) "라운드2 처리 완료 / 남은 보류" 참고. (6파일 변경)
+
+### Security
+- **#3 `add_dir` Path Traversal 게이트** (`services/claude_runner.py`) — `--add-dir` argv 진입 직전 `_validate_add_dir()` 추가. 허용 루트=이번 요청 `workdir`(ephemeral 은 tempdir). `Path.resolve()` + `os.path.commonpath()` 로 루트 하위 검증, `..` 토큰·루트 밖 절대경로는 거부(skip + warning). `workspace_dir` 미지정이면 절대경로 전부 거부(보수적 정책). 첨부 처리(`adaeba4`)와 동일 방어 패턴 재사용.
+
+### Bug / Reliability
+- **#1 LLM 스트리밍 예외 스코핑 — 부분응답 유실 차단** (`chat/router.py`) — 스트리밍 `while` 루프만 좁게 감싸 `CancelledError`(클라 disconnect/외곽 cancel)는 즉시 전파(외곽 gen() 이 부분응답 저장 담당)하고, 그 외 LLM provider 예외/타임아웃은 *여기서* 잡아 friendly SSE error 전송 + 부분 버퍼를 `_save_and_postprocess` 로 저장 + `record_llm(success=False, error_code=…)`. 이전엔 광역 except 로 흘러 부분응답이 *저장 안 되던* 갭 해소.
+- **#8 RAG graceful degradation — 조회 실패 vs 비활성 구분** (`prompt_builder.py` + `chat/router.py`) — `rag_status`("ok"/"failed"/"disabled") 도입. 파이프라인이 in-place 적재, router 가 최종 판정 후 `record_llm` meta 에 기록. `rag_failed`(=failed && 빈 컨텍스트)면 시스템 프롬프트에 "참고 문서 조회 실패" degradation 한 줄을 주입해 LLM 이 *문서 없음* 과 *조회 실패* 를 구분하게 함. RAG 폴백 로그도 타임아웃류는 info, 그 외는 warning+stacktrace 로 레벨 차등.
+
+### Performance
+- **#2 챗봇 경로 RAG 타이밍 측정** (`services/chatbot_rag.py`) — `search_for_chatbot(..., timings=dict)` 추가로 `search_ms`(임베딩+하이브리드/스코프 검색)·`rerank_ms`(재랭킹)를 in-place 적재. 챗봇 경로도 `_run_rag_pipeline` 과 동등한 단계별 latency meta 기록 가능. 2-tuple 반환 하위호환 유지(기존 호출부 무영향).
+- **#6 스킬/RecoveryTip 키워드 매칭 SQL 1차 필터** (`services/learning.py`) — JSONB `?|`(jsonb_exists_any) 연산자(`_jsonb_overlaps_any`)로 `triggers`/`tags`/`prompt_keywords` GIN 인덱스 사용 → 풀스캔 제거. 키워드는 단일 `bindparam`(text[] 캐스팅, raw string 연결 없음). 키워드 0개 폴백 시 `_FALLBACK_LIMIT=200` 상한으로 메모리 폭주 방지.
+
+### UX / Refactor
+- **#7 초기 계정/키 상태 조회 실패 안내** (`chat/page.tsx`) — `/auth/me/api-keys`·`/claude_code/account` 조회 실패 시 안전 폴백 유지 + *첫 실패 한 번만* 조용한 인라인 힌트(`role=status`) + `console.warn`. 오프라인(`ApiUserError.status===0`)은 전역 `ServerStatusToast` 가 담당하므로 조용히 무시(중복 알림 금지). `keyStatusWarnedRef` 로 반복 실패 토스트/힌트 스팸 차단.
+- **#9 컨텍스트 로더 try/except DRY** (`chat/router.py`) — 메모리/스킬/Recovery 로더의 동일 "실패→빈 문자열 폴백 + 예외 로깅" 패턴을 `_safe_call(coro, rid, label)` 공용 래퍼로 추출.
+
 ## 2026-06-09 — 종합 감사 (검증된 버그/보안/성능/UX 수정)
 
 전체 코드베이스 종합 감사. 직접 코드 확인으로 *검증된* 항목만 자동 적용했고, 제품 결정·대규모 리팩토링 항목은 [known-issues.md](known-issues.md) "2026-06-09 종합 감사" 섹션에 보류 사유와 함께 기록했다. (8파일 변경)
