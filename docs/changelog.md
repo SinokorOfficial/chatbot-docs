@@ -2,6 +2,11 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 (실버그 수정) — 워크스페이스 목록/상세 HTTP 500 해소
+
+### Fixed
+- **회귀 테스트가 잡은 실버그 즉시 수정** — 새로 추가한 워크스페이스 테스트의 strict-xfail 가드가 `GET /workspaces`(목록)·`GET /workspaces/{id}`(상세)의 HTTP 500 을 검출. `services/workspace_manager.py` 의 SQLAlchemy import 누락(`func`)을 보강해 해소. 전체 백엔드 테스트 130 passed. *테스트 인프라 복구 직후 실제 회귀를 막아낸 첫 사례.* [services/workspace_manager.py, tests/test_workspace_detach.py]
+
 ## 2026-06-09 — 회귀 테스트 확장 — 워크스페이스 detach/archive 소유권·비파괴, 보안 헬퍼(add_dir/sanitize/path-traversal), RAG 동적 floor·citation 필터 잠금
 
 ### Tests
