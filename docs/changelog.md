@@ -2,6 +2,20 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — Claude Code — 웹 모드 `/` 메뉴를 실제 CLI 슬래시 카탈로그와 동기화
+
+클로드코드 모드 `/` 메뉴를 실제 Claude Code 슬래시 카탈로그(바이너리 84개 + 스킬)와 동기화 — web-action 매핑/cc-passthrough(스킬 headless 실행)/cli-only 안내로 분류, 데이터 기반(`claudeCodeCommands.ts`, `trans.py` 대조 유지). 과거 손으로 적어 넣어 *실제 CLI 와 어긋나던* 슬래시 목록을, 실측 카탈로그를 단일 출처로 삼아 세 분류로 정리했다. 모든 변경은 a11y 회귀(axe) 통과.
+
+### Added / Changed
+- **실측 슬래시 카탈로그 데이터 파일(`claudeCodeCommands.ts`)** — 실제 `claude` CLI 2.1.169 / `~/.claude/i18n/trans.py`(바이너리 설명 84개) 기반의 데이터 전용 카탈로그. 각 항목은 `category`(`web-action` | `cc-passthrough` | `cli-only`)·`koDesc`·`webAction`·`headlessWorks` 를 갖는다. 유추 금지 — 갱신 시 `trans.py` 와 대조하는 규칙을 파일 헤더에 명시. [frontend/features/chat/claudeCodeCommands.ts]
+- **세 분류로 `/` 메뉴 구성** — 클로드 코드 모드 ON 일 때 `/` 메뉴를 ① 빠른 작업(web-action — `model`/`effort`/`mcp`/`help`/`cost` 를 실제 웹 액션·라우팅으로 매핑), ② Claude Code 명령·스킬(cc-passthrough — 선택 시 `/{name} ` 를 입력창에 prepend → `claude_code` 직행 라우팅으로 헤드리스 실제 실행), ③ CLI 전용(cli-only — 터미널 TUI 전용, 하단 펼침형 비활성 안내)으로 묶었다. 모드 OFF 면 기존 단일 목록 유지(회귀 0). [frontend/app/(workspace)/chat/page.tsx, frontend/features/chat/SlashCommandMenu.tsx]
+- **`SlashCommandMenu` 그룹/CLI-안내 렌더** — `grouped` 면 group 키(`quick`/`cc`)로 섹션 헤더를 묶되 키보드 활성 인덱스와 화면 순서를 1:1 보존. `cliOnly` 정보 목록은 `role="listbox"` *바깥* 의 펼침형 안내로 두어 선택 불가(aria-required-children 위반 0). [frontend/features/chat/SlashCommandMenu.tsx]
+
+### Tests / Docs
+- **슬래시 메뉴 동기화 회귀 테스트**(`frontend/features/chat/__tests__/SlashCommandMenu.test.tsx`) — 모드 OFF 단일 목록(회귀 0), 모드 ON 섹션 헤더 분리, cc-passthrough `/{id}` 배지 + 클릭 시 onPick 전달, cli-only 기본 숨김→펼침(선택 불가), a11y 위반 0 을 잠근다. [+5 tests]
+- **CLI 슬래시 동기화 표 문서**(`docs/claude-code-cli.md`) — 명령/분류/웹 동작 매핑표 추가. `claudeCodeCommands.ts`(출처: `trans.py`) 가 단일 출처임을 명시.
+- 검증: `frontend` `tsc --noEmit` exit 0 + `vitest run` **52 passed**(a11y 8건 포함).
+
 ## 2026-06-09 — UX — 클로드코드 모드 시각 정합 + MCP 자격증명 데이터기반 폼
 
 클로드코드 모드 시각 정합(디자인 토큰 통일·lag 배지 톤다운·진행 가시화) + MCP 자격증명 데이터기반 구조화 폼(가이드 보기, tools.yaml 갱신=코드 무변경). "코드 모드"라는 이유만으로 별색·별도 둥근모서리·뿌연 점으로 *튀던* 시각 요소를 시스템 카드의 디자인 토큰 리듬에 정렬하고, 자격증명 등록을 raw JSON 작성에서 라벨드 동적 폼으로 바꿨다. 모든 변경은 a11y 회귀(axe) 통과.
