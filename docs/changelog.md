@@ -2,6 +2,21 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — claude_code 실 CLI(2.1.169) 정합
+
+claude_code 실 CLI(2.1.169) 정합 — 유추 옵션 `--max-turns` 제거→`--max-budget-usd`, 추론강도 실제 `--effort`(low~max)로 교정, 앱 MCP/스킬을 `--mcp-config`/`--plugin-dir` 로 세션 스코프 연동(멀티테넌트 격리).
+
+### Changed / Fixed
+- **유추 옵션 `--max-turns` 제거** — claude CLI 2.1.169 를 실측한 결과 `--max-turns` 는 *존재하지 않는* 옵션이었다(과거 유추). `run_claude_code_stream` 의 cmd 조립에서 제거하고, `max_turns` 인자는 하위호환을 위해 signature 에만 남겨 *무시*한다. "과도 실행/비용 방지" 의도는 실존 옵션 `--max-budget-usd <float>` 로 대체(`max_budget_usd` 인자 신설). UI(`frontend/.../chat/page.tsx`)의 max_turns 입력 필드·전송 로직도 제거. [backend/app/services/claude_runner.py, backend/config/tools.yaml]
+- **추론강도 실제 `--effort` 로 교정** — UI 가 노출하던 6단계(`none`/`minimum`/`low`/`medium`/`high`/`max`)는 CLI 에 없는 가짜 레벨이었다. 실제 `--effort` 는 `{low, medium, high, xhigh, max}` 5단계. runner 에 `effort` 인자 + `_normalize_effort` 추가(가짜 레벨은 `medium` 으로 보정 + 경고). `tools.yaml` 스키마 enum·UI 셀렉트(추론 강도 5단계)·라우터 패스스루(`effort=_pick("effort")`)까지 일관 교정.
+- **앱 MCP/스킬 세션 스코프 연동(멀티테넌트 격리)** — 챗봇에 enabled 된 MCP Tool 을 `--mcp-config <임시 JSON>` 으로, team/org/public 가시성 활성 Skill 을 `--plugin-dir <임시 디렉토리>` 로 *요청 스코프* 물질화하는 브리지(`backend/app/services/claude_cli_bridge.py`) 신설. 산출물은 한 요청 스코프 디렉토리에 모아 응답 종료 시 일괄 정리(`cleanup_scope_dir`). 자격증명(headers/env)은 0o600 원자 생성 + *값 로깅 금지*, 서버명/슬러그는 `[A-Za-z0-9_-]` sanitize 로 path-traversal·argv injection 방지. 라우터(`_stream_claude_code_direct`)가 브리지 결과를 `--mcp-config`/`--plugin-dir` 로 결선하며, 브리지 실패는 비치명(MCP/skill 없이 진행).
+- **permission-mode 검증** — `--permission-mode` 실측 유효값(`acceptEdits|auto|bypassPermissions|default|dontAsk|plan`)만 통과시키는 `_normalize_permission_mode` 추가. 비대화(`--print`) 샌드박스 기본은 `bypassPermissions`(Bash 등 자동 승인), 무효값은 안전 기본으로 보정.
+
+### Tests / Docs
+- **cli_args 조립 단위테스트** (`backend/tests/test_claude_runner_cli_args.py`) — 실제 CLI 호출 없이 `asyncio.create_subprocess_exec` 를 가로채 조립된 argv 만 캡처·검증: `--max-turns` 미포함(명시로 넘겨도 누출 안 됨), `--effort <값>` 포함/None 시 생략/가짜 레벨 medium 보정, `--max-budget-usd` 포함, 기본 permission-mode `bypassPermissions`, `--mcp-config` 패스스루. → **8 passed**.
+- **CLI 옵션 매핑 문서** (`docs/claude-code-cli.md`) — 실제 CLI 옵션 ↔ 앱 인자/페이로드 매핑표 + MCP/skill 세션 스코프 연동 구조·보안 모델 정리.
+- 검증: 변경 백엔드 `.py` AST 파싱 OK, main.py touch→reload 후 `/health` 200, `frontend` `tsc --noEmit` exit 0 + `vitest run` 38 passed, backend cli_args 단위테스트 8 passed.
+
 ## 2026-06-09 — 접근성 자동 회귀 테스트(axe-core) 도입
 
 접근성 자동 회귀 테스트(axe-core) 도입 — 핵심 컴포넌트 a11y 위반 2건 수정 + Vitest 에 통합(CI 자동 포함).

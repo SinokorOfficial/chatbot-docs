@@ -32,6 +32,7 @@ nav:
       - 도구: tools.md
       - 코드 인터프리터 샌드박스: sandbox.md
       - 클로드 코드 모드: claude-code-mode.md
+      - Claude Code CLI 옵션 매핑: claude-code-cli.md
       - 브랜드 테마: themes.md
 
   - API: api.md
