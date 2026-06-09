@@ -2,6 +2,15 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — 전체 작업공간 페이지+보관, 대화별 비파괴 분리 버튼, FAQ 권한 회귀 테스트
+
+### Features
+- **전체 작업공간 목록 페이지 + 보관(archive)** — 대화별 워크스페이스가 누적돼도 한 화면에서 조회·정리할 수 있는 전체 목록 페이지를 신설하고(`frontend/app/(workspace)/workspaces/`), `NavMenu` 진입점과 목록 API 와이어링(`shared/lib/api.ts`)을 추가. 목록은 워크스페이스별 연결 대화 수·orphan/방치 여부를 함께 노출하고, 정리는 하드 삭제 대신 **보관(archive)** 으로 비파괴 처리(`workspace/router.py`·`services/workspace_manager.py`). (known-issues #6)
+- **대화별 비파괴 분리(detach) 버튼** — 기존 대화가 default 워크스페이스를 계속 공유하던 잔존 문제를, 데이터 파괴 없이 대화 단위로 자기 워크스페이스로 떼어내는 분리 버튼으로 해소(`chat/page.tsx` + `workspace/router.py` `POST /workspaces/conversations/{id}/detach`). 일괄 `UPDATE…SET NULL` 대신 사용자가 대화별로 안전하게 분리해 공유 잔존/중첩을 점진 해소(원본 default ws 비파괴 유지). (known-issues #2)
+
+### Tests
+- **FAQ 권한 회귀 테스트** — `_assert_faq_editable` 의 팀 스코프 계약을 잠그는 순수 단위 테스트 추가(`backend/tests/test_faq_permissions.py`). 다른 팀 team_admin → 403(IDOR 회귀 방지), 소유 팀 team_admin·super_admin·작성자 본인 → 허용, 무관한 일반 멤버 → 403 을 검증(서버/DB 없이 가짜 AsyncSession 으로 실행).
+
 ## 2026-06-09 (라운드3-보안) — FAQ 권한 스코프 정정 + 내부 문서 공개 노출 차단
 
 ### Security
