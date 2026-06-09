@@ -2,6 +2,14 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — 회귀 테스트 확장 — 워크스페이스 detach/archive 소유권·비파괴, 보안 헬퍼(add_dir/sanitize/path-traversal), RAG 동적 floor·citation 필터 잠금
+
+### Tests
+- **워크스페이스 detach/archive 소유권·비파괴 회귀 테스트** (`backend/tests/test_workspace_detach.py`) — 대화별 비파괴 분리(detach)와 보관(archive)의 소유권 경계·비파괴 계약을 잠근다. detach 가 원본 default 워크스페이스를 파괴하지 않고 대화만 자기 워크스페이스로 떼어내는지, archive 후 기본 목록에서 제외되고 `include_archived` 로 재노출되는지, 목록이 본인 것만 + `conversation_count` 와 함께 반환하는지를 검증. 목록/상세 경로 3건은 후속 라운드에서 해소할 알려진 이슈를 잠그는 **strict xfail** 가드로 등록 — 해당 이슈 수정 시 XPASS 로 터져 가드 갱신을 강제한다(상세는 사내 백로그에서 추적).
+- **보안 헬퍼 회귀 테스트** (`backend/tests/test_security_helpers.py`) — `add_dir`/경로 sanitize/path-traversal 방어 헬퍼의 계약을 잠근다(`..`/절대경로/심볼릭 우회 거부 등).
+- **RAG 동적 floor · citation 필터 잠금** (`backend/tests/test_rag_filtering.py`) — 검색 결과의 동적 score floor 와 citation 필터링 동작을 회귀 잠금.
+- 결과: `pytest tests/ -q` → **127 passed, 3 xfailed, 0 failed**(3 xfailed = 후속 라운드 예정 알려진 이슈 가드). 백엔드 앱 코드 무변경(tests/ 만 추가).
+
 ## 2026-06-09 — 테스트 인프라 복구(트랜잭션 롤백 픽스처/통합테스트 green) + GitHub Actions CI(tsc/pytest/mkdocs strict)
 
 ### Tests / Infra
