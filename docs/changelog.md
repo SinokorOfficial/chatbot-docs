@@ -2,6 +2,31 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-09 — UX 흐름 — 핵심 여정의 다음-액션 갭 9건 보강(빈 상태 CTA·완료 후 다음 단계 안내·온보딩 연속성)
+
+UX 흐름 — 핵심 여정의 다음-액션 갭 9건 보강(빈 상태 CTA·완료 후 다음 단계 안내·온보딩 연속성). 각 화면이 *독립적으로* 끝나버려 "다음에 뭘 해야 하지?" 가 끊기던 지점을, 죽은 토스트가 아니라 *실제 동작하는 링크/딥링크* 로 이어지게 보강했다. 모든 새 UI 는 a11y 회귀(axe) 통과.
+
+### Added / Changed
+- **빈 상태 0건 의미 분리(`EmptyState` `variant="empty" | "filtered"`)** — 진짜 0건은 "무엇을 하면 채워지는지 + CTA", 검색/필터 후 0건은 "조건을 완화하세요 + 리셋 버튼(`onReset`)"으로 분기. workflows(`scope!=='visible'` → 전체 보기)·documents(검색/폴더/진짜 0건 3분기)·skills(전체엔 있으나 필터 0건 → 필터 모두 지우기)·team(검색 0건 → 검색어 지우기)에 적용. [frontend/shared/ui/EmptyState.tsx 외 4개 페이지]
+- **성공 직후 "다음 액션" 비차단 배너(`SuccessFollowup`)** — `celebrate()` 컨페티 직후(기본 1s 뒤) 화면 하단에 떠 *원하면 누르고 무시하면 자동 사라지는*(기본 6s) 배너. 모듈 싱글톤 + `AppShell` 전역 호스트(`SuccessFollowupHost`). `role="status"`/`aria-live="polite"`, prefers-reduced-motion 존중, 액션은 실제 `next/link`. [frontend/shared/ui/SuccessFollowup.tsx, frontend/shared/layout/AppShell.tsx]
+- **챗봇 생성 완료 → 다음 단계 안내** — 생성 직후 방금 만든 카드 6s 하이라이트 + SuccessFollowup 으로 "문서 연결(이미 연결 시 생략) · Q&A 입력(편집 권한 확인 후 노출) · 바로 테스트" 노출. POST 응답의 `id` 로 실제 라우트 연결. [frontend/app/(workspace)/chatbots/page.tsx]
+- **첫 Q&A 등록 → 다음 단계 안내** — 첫 FAQ 등록 순간에만 축하 + "지금 테스트하기 · 챗봇 설정 보기" SuccessFollowup. [frontend/app/(workspace)/chatbots/[id]/faqs/page.tsx]
+- **문서 업로드 완료 → "채팅에서 회사 자료로 답하기"** — 업로드 성공 시 개수와 함께 `/chat?rag=1`(회사 문서로 답하기 ON 으로 착지) 링크 배너. [frontend/app/(workspace)/documents/page.tsx]
+- **작업공간 빈 상태 → Claude Code 모드 딥링크** — "작업공간이 없어요"에서 `/chat?cc=1`(Claude Code 모드 자동 ON + 작업공간 fullscreen)로 시작 + "Claude Code 모드란?" 보조 링크. [frontend/app/(workspace)/workspaces/page.tsx]
+- **스킬 활용 흐름 도표** — "찾기 → 복사 → /chat 에서 슬래시 명령으로 사용" 3단계를 페이지 상단에 명시, 마지막 단계는 실제 `/chat` 링크. [frontend/app/(workspace)/skills/page.tsx]
+- **채팅 빈 화면 다음-액션 카드 + 딥링크 수신** — 일반 모드 빈 화면에 "문서 업로드 후 사용해보기 · 첫 챗봇 3분 만들기" 카드. `?cc=1`/`?rag=1` 딥링크를 *빈 새 대화* 진입에서만 적용 후 history replace 로 정리. [frontend/app/(workspace)/chat/page.tsx]
+- **Claude Code 작업 완료 직후 다음-액션 띠(`agent_done.ok`)** — 우측 작업공간 패널에만 있던 미리보기/저장을 채팅 흐름 안에서 "미리보기 열기 · 이어서 수정 · 닫기"로 1회 안내. 새 메시지 전송/닫기 시 사라짐. [frontend/app/(workspace)/chat/page.tsx]
+- **Claude Code 모드 빈 상태 — 작동 방식 한 줄 + 첫 진입 코치마크** — "작업공간 패널(📂 파일 트리 · ▶ 실행 · 👁 미리보기)" 안내를 항상 노출하고, 우측 패널을 가리키는 코치마크를 유저별 localStorage 로 1회 영구 닫기. [frontend/app/(workspace)/chat/page.tsx]
+
+### Fixed (security, 동반)
+- **FAQ 접근 IDOR 차단** — `faqs/router.py` 의 `_get_chatbot_or_404`/`_get_faq_or_404` 가 `private` 만 팀을 검사해 `shared` 챗봇 FAQ 가 *임의 팀* 에 노출되던 IDOR 를, 챗봇 본문과 동일한 `chatbot_service._user_can_access`(private=소유자/public=같은 팀/shared=같은 팀+`ChatbotTeamAccess` 등록 팀)로 통일. 회귀 테스트 `backend/tests/test_faq_permissions.py` 신설. [backend/app/features/faqs/router.py]
+
+### Tests / Docs
+- **UX 회귀 테스트** (`frontend/__tests__/ux/empty-and-followup.test.tsx`) — `EmptyState` filtered 변형의 리셋 버튼/표준 안내, 기본 변형의 리셋 버튼 미노출, `successFollowup()` 의 지연 등장·실제 href·닫기 라벨, 그리고 두 컴포넌트의 axe 위반 0 을 강제. [+6 tests]
+- **백엔드 FAQ 권한 회귀 테스트** (`backend/tests/test_faq_permissions.py`) — private/public/shared 별 FAQ 조회·작성 권한 매트릭스. [+13 tests]
+- 검증: `frontend` `tsc --noEmit` exit 0 + `vitest run` **44 passed**(a11y 8건 포함), `backend` `pytest tests/test_faq_permissions.py` **13 passed**.
+- **제품 결정 필요 UX 백로그**(`docs/known-issues.md`) — 온보딩 연속성/진행도 관련 *제품 결정 선행* 3건(빈 워크플로 후속 미니 가이드, 완료 후 경로도/진행도, 가입→승인 대기→첫 접근 안내) 기록. 본 커밋은 화면별 다음-액션 갭을 메웠고, 여러 화면을 *가로지르는* 진행도/체크리스트는 별도 제품 결정 후 진행한다.
+
 ## 2026-06-09 — 성능 — latency meta 기반 병목 측정 + 안전 최적화(요약)
 
 성능 — latency meta 기반 병목 측정 + 안전 최적화(요약). chat 라우터가 적재하는 `search_ms`/`rerank_ms`/`rag_status` meta 로 chat·RAG·document 경로의 구간 병목을 특정하고, **결과 불변**이 검증된 최적화만 적용했다.
