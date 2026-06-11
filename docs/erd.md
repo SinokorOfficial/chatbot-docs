@@ -70,6 +70,7 @@ erDiagram
 | *team_id* | UUID FK teams.id | * | |
 | *owner_user_id* | UUID FK users.id | * | |
 | scope | Enum `DocumentScope` | * | team / personal |
+| description | Text | * default '' | 사용자 작성 문서 설명 — RAG 검색 시 출처 컨텍스트로 포함해 정확도 향상 |
 | storage_path | String(1024) | * | 절대 경로 |
 | original_filename | String(512) | * | |
 | mime_type | String(200) | | |
@@ -175,6 +176,8 @@ erDiagram
 | source | Enum `ToolSource` | * default=system | `system` / `user` |
 | visibility | Enum `ToolVisibility` | * default=private | `private` (작성자만) / `team` (팀장+ 등록 필요) / `public` (팀장+ 등록 필요) |
 | upvote_count | Integer | * default=0 | `UserToolUpvote` aggregate |
+| fork_count | Integer | * default=0 | 사용자 fork(복제) 횟수 |
+| forked_from_id | UUID FK tools.id NULL | ON DELETE SET NULL | 원본 도구 (사용자가 fork 한 경우) |
 | created_at | DateTime | * | |
 
 > **보안**: `POST /tools/custom` · `PATCH /tools/{id}` 의 `endpoint` 는 `app/core/ssrf.py:assert_safe_url` 를 통과해야 하고, `visibility=team/public` 으로 등록·승격하려면 `team_admin` 이상이어야 합니다. 자세한 내용은 `docs/api.md` 의 Tools 섹션 참조.

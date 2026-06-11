@@ -17,19 +17,23 @@
 
 ## 1. 페이지네이션 적용 매트릭스
 
+> `/skills` · `/workflows` · `/tools` · `/schedules` 라우트는 **개발 전용(운영 미노출, ADR-0009)**
+> 입니다 — 운영 빌드에서는 `FEATURE_*` 가 OFF 라 라우터가 등록되지 않습니다(404). 아래 매트릭스는
+> 전 기능(개발) 기준입니다.
+
 이미 적용된 라우트:
-- `GET /skills` (limit/offset)
+- `GET /skills` (limit/offset) — *개발 전용*
 - `GET /chatbots/{id}/faqs` (PageParams)
 - `GET /faqs/{id}/comments` (PageParams)
 - `GET /conversations` (limit, max 200)
-- `GET /workflows/{id}/runs` (limit, max 200)
+- `GET /workflows/{id}/runs` (limit, max 200) — *개발 전용*
 - `GET /team/members` (limit, max 200)
 - `GET /notices/*` (limit)
 
 아직 미적용 — 트래픽 증가 시 추가 필요:
 - `GET /chatbots` (팀당 챗봇 50~100개 예상 시 추가)
-- `GET /tools` (사용자 등록 도구 100+개 시 추가)
-- `GET /themes` (현재 24개라 무관, 캐시로 충분)
+- `GET /tools` (사용자 등록 도구 100+개 시 추가) — *개발 전용*
+- `GET /themes` (현재 16개라 무관, 캐시로 충분)
 - `GET /documents` (사용자당 문서 1000+ 가능 — **우선순위 높음**)
 
 규칙:
@@ -160,7 +164,7 @@ Phase 2 — 메시지 브로커 도입:
 < 100        : 페이지네이션, 인덱스만 — 현재 충분
 100~10k      : 캐시 강화 (Redis 전환), read replica 1대
 10k~100k     : 메시지 브로커 분리, 파티셔닝 시작 (messages)
-100k+        : 샤딩 검토, 마이크로서비스 분리 (tool-server 는 이미 분리됨)
+100k+        : 샤딩 검토, 마이크로서비스 분리 (외부 tool-server 는 이미 분리 — 단 도구 마켓 자체가 개발 전용·운영 미노출, ADR-0009)
 1M+          : 멀티 리전, 글로벌 CDN, edge compute
 ```
 

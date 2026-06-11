@@ -19,8 +19,8 @@ NavMenu (Surface)
 │  ├─ 대화 시작           /chat
 │  ├─ 챗봇 만들기         /chatbots
 │  ├─ 자료 올리기         /documents
-│  └─ 마켓에서 가져오기   /skills
-└─ 자동화
+│  └─ 마켓에서 가져오기   /skills      (개발 전용 · 운영 미노출)
+└─ 자동화                              (개발 전용 · 운영 미노출)
    ├─ 반복 작업 자동 실행 /workflows
    └─ 정해진 시간에 실행  /schedules
 
@@ -30,8 +30,10 @@ AvatarMenu (개인·도움·관리)
 └─ (권한) 감사 · 관리
 
 ⌘K (전체 검색)
-└─ NavMenu/AvatarMenu 전체 + 고급(도구·스튜디오)
+└─ NavMenu/AvatarMenu 전체 + 고급(도구·스튜디오, 개발 전용)
 ```
+
+> **운영/개발 티어 (ADR-0009).** 운영(`NEXT_PUBLIC_FEATURE_SET=rag`) 빌드에서는 RAG 챗봇 4기능(대화·챗봇 만들기·자료 올리기·문서 검색)만 NavMenu 에 노출된다. `/skills`·`/workflows`·`/schedules`·`/tools`·`/studio`·`/workspaces` 는 개발 전용으로, 프론트는 `frontend/shared/lib/features.ts` 의 `DEV_ONLY_PATH_PREFIXES` + `isRagOnly` 가드로 메뉴·팔레트에서 숨기고, 운영 백엔드는 `backend/app/core/config.py` 의 feature 플래그(`skills_enabled`/`workflows_enabled`/`schedules_enabled`/`custom_tools_enabled`)에 따라 해당 라우터를 등록하지 않는다(404).
 
 ## 신규 메뉴 추가 전 5단계 체크리스트
 

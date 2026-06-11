@@ -1,13 +1,13 @@
 # 코드 샌드박스 구조
 
-> `code_interpreter` 도구가 사용하는 격리 실행 환경. 에이전트가 생성한 Python 코드를 컨테이너에서 실행하여 결과(stdout/이미지)를 다시 LLM에 주입합니다.
+> **개발 전용(운영 미노출)** — 이 샌드박스(`code_sandbox.run_code`)는 ADR-0005 로 폐기된 `code_interpreter` 가 아니라, 현재는 `claude_code` 에이전트 루프의 자동 pip-install 재시도 헬퍼(`agent.py`, ModuleNotFoundError 복구)로 사용됩니다. `claude_code` 는 ADR-0009 개발 티어 전용이라 운영(`FEATURE_CLAUDE_CODE=off`)에서는 호출 경로 자체가 없습니다. 컨테이너에서 Python 코드를 격리 실행해 결과(stdout/이미지)를 다시 LLM 에 되먹입니다.
 
 ## 1. 전체 그림
 
 ```mermaid
 flowchart LR
  subgraph Backend [FastAPI backend]
- A["agent loop"] -->|tool_call: code_interpreter| B["code_sandbox.run_code()"]
+ A["agent loop (claude_code)"] -->|ModuleNotFoundError → pip install| B["code_sandbox.run_code()"]
  B -->|docker run --rm| C[(chatbot-sandbox 이미지)]
  B -->|tempdir mount| W[/tmp/sandbox-xxx/]
  C --> W
@@ -48,14 +48,20 @@ docker build -t chatbot-sandbox backend/sandbox
 cmd = [
  "docker", "run", "--rm",
  "--name", f"sandbox-{run_id}",
- "--network", "none", # 네트워크 완전 차단
- "--memory", "512m", # OOM 방지
- "--cpus", "1", # CPU 1 코어 제한
- "--pids-limit", "64", # fork 폭탄 방지
+ "--network", "none",                          # 네트워크 완전 차단
+ "--memory", f"{settings.sandbox_memory_mb}m",  # OOM 방지
+ "--cpus", str(settings.sandbox_cpus),          # CPU 코어 제한
+ "--pids-limit", str(settings.sandbox_pids_limit),  # fork 폭탄 방지
+ "--read-only",                                 # rootfs 읽기 전용
+ "--cap-drop", "ALL",                           # 모든 리눅스 capability 제거
+ "--security-opt", "no-new-privileges",         # 권한 상승 차단
+ "--user", "65534:65534",                       # nobody 로 실행
+ "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",   # 쓰기 가능 임시 영역(실행 금지)
  "-v", f"{workspace}:/workspace:rw",
  "chatbot-sandbox",
  "python", "/workspace/_run.py",
 ]
+# sandbox_runtime_class != "runc" 이면 cmd 에 --runtime <class>-runtime 삽입(예: kata-runtime)
 ```
 
 | 경계 | 값 | 목적 |
@@ -120,6 +126,8 @@ sequenceDiagram
 ## 6. 보안 경계 요약
 
 1. **Docker 격리** — 컨테이너에서만 코드 실행. 호스트 파일시스템은 `-v` 로 마운트한 임시 디렉토리만 접근 가능.
+1-1. **rootfs/권한 강화** — `--read-only` + `--cap-drop ALL` + `--security-opt no-new-privileges` + `--user 65534:65534`(nobody) + `--tmpfs /tmp(noexec,nosuid,64m)` 로 컨테이너 권한을 최소화(ADR-0001 Phase 0).
+1-2. **native fallback 차단** — `SANDBOX_REQUIRE_DOCKER=true`(운영 기본)이고 Docker 가 없으면 native subprocess 실행을 거부하고 비활성 응답을 반환한다(호스트 RCE 차단). `false` 인 내부 dev 환경에서만 native 경로 허용.
 2. **네트워크 차단** — `--network none` 으로 외부 호출 불가(데이터 반출/외부 API 호출 모두 실패).
 3. **자원 상한** — 메모리/CPU/PID 제한으로 DoS 회피.
 4. **임시 작업공간** — 실행 종료 직후 `shutil.rmtree`로 삭제. 재시도는 항상 새 디렉토리에서.

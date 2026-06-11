@@ -20,14 +20,18 @@
 | visibility | 사용 가능한 사용자 |
 | ---------- | ----------------- |
 | `private` | 오너(`owner_user_id`)만 |
-| `public` | **오너의 팀** + `chatbot_team_access`에 등록된(= 오너가 승인한) **팀들의 구성원** |
+| `public` | **오너 팀 전체**(교차팀 아님) |
+| `shared` | **오너 팀 + `chatbot_team_access` 에 등록된 추가 팀**의 구성원 |
+
+교차팀 공유는 `shared` 가 담당하며 `public` 은 오너 팀 한정입니다(상단 진실 박스 참조).
 
 ```mermaid
 flowchart TB
  CB["챗봇 (visibility)"]
  CB -->|private| O[오너만]
- CB -->|public| BASE[오너 팀]
- CB -->|public| GRANTED["승인된 팀들<br/>(chatbot_team_access)"]
+ CB -->|public| PUB[오너 팀 전체]
+ CB -->|shared| BASE[오너 팀]
+ CB -->|shared| GRANTED["승인된 팀들<br/>(chatbot_team_access)"]
 ```
 
 - 오너 팀은 **항상** 접근 가능(묵시). 별도 레코드 필요 없음.
@@ -46,13 +50,13 @@ chatbot_team_access
 │ id │ UUID PK │
 │ chatbot_id │ UUID FK chatbots.id ON DELETE CASCADE │
 │ team_id │ UUID FK teams.id ON DELETE CASCADE │
-│ granted_by │ UUID FK users.id │
 │ created_at │ TIMESTAMP │
 │ UNIQUE (chatbot_id, team_id) │
 └────────────┴──────────────────────────────────────────┘
 ```
 
-- `visibility=public` 일 때만 의미 있음. `private` 이면 무시(또는 서버가 무효 레코드로 거절).
+- `visibility=shared` 일 때만 의미 있음. 그 외 가시성이면 백엔드가 레코드를 자동 청소(`replace_extra_team_access(…, [])`).
+- 실제 컬럼은 `id`(PK)·`chatbot_id`(FK CASCADE)·`team_id`(FK CASCADE)·`created_at` 와 `UNIQUE(chatbot_id, team_id)` 뿐이다(`granted_by` 미구현).
 - `chatbot` 삭제 시 cascade. 팀 삭제 시에도 cascade 후 공유 자동 해제.
 
 ### 3.2 ERD 조각
@@ -65,12 +69,12 @@ erDiagram
  uuid id PK
  uuid team_id FK "오너 팀"
  uuid owner_user_id FK
- string visibility "private | public"
+ string visibility "private | public | shared"
  }
  CHATBOT_TEAM_ACCESS {
+ uuid id PK
  uuid chatbot_id FK
  uuid team_id FK
- uuid granted_by FK
  }
 ```
 
@@ -89,29 +93,29 @@ erDiagram
 
 ## 5. 권한 체크 로직
 
-`services/chatbot_service.py::get_chatbot_for_user()`:
+`services/chatbot_service.py::_user_can_access()` (래퍼 `get_for_use()` 에서 호출):
 
 ```python
-if chatbot.visibility == ChatbotVisibility.private:
- allowed = chatbot.owner_user_id == user.id or user.role == UserRole.super_admin
-elif chatbot.visibility == ChatbotVisibility.public:
- if chatbot.team_id == user.team_id:
- allowed = True
- else:
- allowed = await _team_has_access(db, chatbot.id, user.team_id)
-else:
- allowed = False
+if chatbot.owner_user_id == user.id:
+ return True                                  # 소유자는 항상
+if chatbot.team_id == user.team_id:
+ # 같은 팀: private 면 소유자만, 그 외(public/shared)는 팀원도 OK
+ return chatbot.visibility != ChatbotVisibility.private
+# 다른 팀: shared 인 경우 chatbot_team_access 에 내 팀이 등록되어 있어야 함
+if chatbot.visibility != ChatbotVisibility.shared:
+ return False                                 # public 은 타 팀에 절대 열리지 않음
+return await _team_is_granted(db, chatbot.id, user.team_id)
 ```
 
-내 접근 가능 챗봇 목록(`GET /chatbots`):
+내 접근 가능 챗봇 목록(`GET /chatbots` → `chatbot_service.list_visible`):
 
 ```sql
 WITH me AS (SELECT :user_id::uuid AS uid, :team_id::uuid AS tid)
 SELECT c.*
  FROM chatbots c, me
  WHERE c.owner_user_id = me.uid
- OR (c.visibility = 'public' AND c.team_id = me.tid)
- OR (c.visibility = 'public'
+ OR (c.visibility != 'private' AND c.team_id = me.tid)
+ OR (c.visibility = 'shared'
  AND EXISTS (
  SELECT 1 FROM chatbot_team_access a
  WHERE a.chatbot_id = c.id AND a.team_id = me.tid
@@ -129,21 +133,18 @@ SELECT c.*
 
 | 메서드 | 경로 | 설명 |
 | ------ | ---- | ---- |
-| `GET` | `/chatbots` | 내가 접근 가능한 목록(오너 + 오너 팀 public + 승인 받은 public) |
-| `PATCH`| `/chatbots/{id}` | `visibility` 토글 |
-| `GET` | `/chatbots/{id}/shares` | 현재 승인된 팀 목록 (team_admin+) |
-| `PUT` | `/chatbots/{id}/shares` | 승인 팀 리스트 **교체** |
-| `POST` | `/chatbots/{id}/shares/{team_id}` | 단일 팀 **추가** |
-| `DELETE` | `/chatbots/{id}/shares/{team_id}` | 단일 팀 **해제** |
+| `GET` | `/chatbots` | 내가 접근 가능한 목록(오너 + 오너 팀 public/shared + 승인 받은 shared) |
+| `POST` / `PATCH` | `/chatbots` · `/chatbots/{id}` | 본문 인라인 필드 `extra_team_ids: [team_uuid...]` 로 공유 팀 지정·교체(`visibility != shared` 면 백엔드가 자동 비움). 전용 `/shares` 엔드포인트는 **없음** |
+| `GET` | `/team/list` | 공유 팀 선택용 팀 목록(`TeamLite`, `invite_code` 비노출) |
 
 요청 예:
 
 ```http
-PUT /chatbots/{id}/shares
-{ "team_ids": ["<team-uuid-1>", "<team-uuid-2>"] }
+PATCH /chatbots/{id}
+{ "visibility": "shared", "extra_team_ids": ["<team-uuid-1>", "<team-uuid-2>"] }
 ```
 
-`private` 챗봇에 공유 팀을 추가하려 하면 `400 visibility=public 이어야 합니다.` 응답.
+`visibility` 가 `shared` 가 아니면 `extra_team_ids` 를 보내더라도 백엔드가 무시·청소합니다(전용 권한 오류 대신 정책적 자동 정리).
 
 ## 8. UI 변경
 
@@ -156,7 +157,7 @@ PUT /chatbots/{id}/shares
 
 ## 9. 감사 · 책임 추적
 
-- `chatbot_team_access.granted_by` — 누가 어떤 팀에 승인했는지 기록.
+- `chatbot_team_access` 에는 `granted_by` 컬럼이 없어 "누가 승인했는지"는 별도로 기록되지 않는다(향후 컬럼 추가 시 추적 가능).
 - `Conversation.chatbot_id`로 "A팀 챗봇을 B팀원이 사용"한 대화를 사후 조회 가능.
 - `/team/audit/conversations` 는 본인 팀 소속 사용자의 대화만 반환 → 오너 팀이 타 팀 대화를 들여다볼 수 없음(개인정보 경계). 필요 시 별도 "공유 챗봇 열람" 권한 플래그를 추가.
 

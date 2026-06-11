@@ -2,6 +2,30 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-11 — 운영 UX 정비: 색 대비 수정 · 레벨 제거 · CI/CD 자동배포 가동
+
+### 수정 (Fixed)
+- **글자 안 보이던 색 대비** — 활성 필터/기간 버튼이 `bg-accent-soft + text-fg` 라 일부 테마(mono 등)에서 텍스트가 배경에 묻혔다. 모든 테마 대비 보장되는 `bg-accent + text-accent-fg` 로 교체(faq 2곳·mypage 1곳). [faq/page.tsx, mypage/page.tsx]
+- **운영 레벨 컨트롤 제거** — 게이미피케이션 레벨 배지(LevelBadge)를 운영(rag)에서 미노출, 레벨 퀘스트(reach_intermediate)도 DEV_ONLY 처리. [chat/page.tsx, quests.ts]
+
+### 확인 (Verified)
+- 챗봇 응답 **토큰 단위 SSE 스트리밍** 정상(백엔드 yield {'t'} ↔ 프론트 getReader 루프 실시간 갱신).
+- **CI/CD 자동배포 가동** — OIDC 페더레이션 + GitHub 변수 7종 + production 환경. deploy.yml 수동 트리거 success(빌드→롤링→스모크 전 단계). 이후 main 푸시 시 자동 배포.
+
+검증: tsc full/rag exit 0 · vitest 52.
+
+## 2026-06-11 — 인터랙티브 온보딩 투어 복구(운영판 분기)
+
+사용자 의도 재확인: 튜토리얼을 *전면 제거*가 아니라 *개선해서 넣기* 였음. "이거 눌러보세요 → 다음" 식 인터랙티브 스텝 투어(Walkthrough)를 되살리되 운영 4기능 기준으로 정리.
+
+### 추가/복구 (Added)
+- **Walkthrough 스텝 투어 복구** — AppShell 재마운트 + 아바타 메뉴 "둘러보기 다시 보기" 복구. 첫 진입 시 페이지별 요소 하이라이트 + "이거 눌러보세요"(click/next) 투어. [shared/layout/AppShell.tsx, AvatarMenu.tsx]
+- **/chat 투어 운영판 분기(pageTours)** — 운영(rag)은 5스텝(환영 → ① 입력창 → ② 회사 문서로 답하기 토글 → ③ 추천 → 마무리)로 RAG 4기능 동선만 안내. 개발(full)판은 코드·앱 만들기/작업공간/API키 스텝 포함. /tools·/workflows·/skills·/schedules 투어는 운영에 페이지가 없어 자동 비노출. [features/onboarding/pageTours.ts]
+- RAG 토글에 `data-tour="rag-toggle"` 앵커 추가(투어 ② 스텝이 가리킴). [chat/page.tsx]
+
+### 검증 (Tests)
+- tsc full/rag exit 0 · vitest 52 · 운영 프리뷰 재빌드.
+
 ## 2026-06-11 — CI/CD 배포 파이프라인 + 무중단 헬스 프로브 + K8s 이전 경로 + docs URL 정리
 
 ### 추가 (Added)

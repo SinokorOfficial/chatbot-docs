@@ -3,17 +3,22 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ 브라우저 (Next.js) │
-│ /login · /register · /chat · /documents · /chatbots · /tools │
-│ /admin · /team │
+│ /login · /register · /chat · /documents · /chatbots · /admin · /team │
+│ /notices · /faq · /qa · /mypage · /guide (운영 포함) │
+│ /tools · /skills · /workflows · /schedules · /workspaces · /studio │
+│ (개발 전용·운영 미노출 — isRagOnly 가 메뉴/화면 숨김) │
 └──────────┬──────────────────────────────────────────────────────┘
  │ HTTPS · Bearer JWT · SSE stream
  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ FastAPI (backend/app) │
-│ routers/ auth · documents · chatbots · tools · chat · team │
-│ services/ ingest · rag · agent · chatbot_rag · tool_registry │
-│ document_parser · chunking · embeddings · sandbox │
-│ middleware/request_logging │
+│ FastAPI (backend/app) — feature-sliced: features/<도메인>/router.py │
+│ 운영(prod): auth · documents · chatbots · chat · team · admin · │
+│ conversations · notices · faqs · usage · stats … RAG 핵심 │
+│ 개발 전용(FEATURE_* off → main.py 가 등록 생략 → 404): │
+│ tools · skills · workflows · schedules · claude_code · workspace │
+│ services/ ingest · rag · agent · chatbot_rag · tool_registry · llm_runtime │
+│ document_parser · chunking · embeddings · code_sandbox │
+│ core/middleware/request_logging │
 └──────┬──────────────┬──────────────┬─────────────┬──────────────┘
  │ │ │ │
  ▼ ▼ ▼ ▼
@@ -106,7 +111,7 @@
 
 - **인증 경계**: JWT는 `Authorization: Bearer <token>` 헤더 하나로만 수용. 쿠키 인증은 사용하지 않음.
 - **파일 경계**: 업로드 파일은 절대 LLM에 바이너리로 전달되지 않음. 항상 파서가 텍스트로 변환한 뒤 청크화.
-- **샌드박스 경계**: `code_interpreter` 도구는 Docker 컨테이너에서만 실행(네트워크 없음, 메모리 512MB, 30s).
+- **샌드박스 경계**: `code_interpreter` 도구(개발 전용·운영 미노출)는 Docker 컨테이너에서만 실행(네트워크 없음, 메모리 512MB, 30s).
 - **외부 API 경계**: 외부 도구(카카오톡, Gmail)는 `tool_registry` 어댑터를 통해서만 호출. 사용자 자격증명은 `tool_credentials`에 저장(암호화 대상 필드).
 
 ## 성능 포커스

@@ -6,7 +6,7 @@
 
 - **pgvector + HNSW** dense 검색 (1536d, OpenAI text-embedding-3-large)
 - **하이브리드** : Dense + Lexical(GIN tsvector) + RRF 융합
-- **LLM 리랭킹** : gpt-4o-mini 로 (query, chunk) 0-10 점 채점 + gap cutoff
+- **LLM 리랭킹** : `openai/gpt-5.4-mini`(설정 `rerank_model` 기본값)로 (query, chunk) 0-10 점 채점 + gap cutoff
 - **적응형 임계값** : 결과 부족 시 단계적 임계 하향 (`adaptive_min_score`)
 - **Sufficiency check + sub-query 1회** : 1차 결과 부족하면 LLM 이 sub-query 생성 후 재검색 (`rag_advanced.py`, depth=2 한정)
 - **HyDE** : 질문을 LLM 가설 답변으로 변환 후 임베딩 → dense recall 향상 (Gao et al. 2022, opt-in flag `rag_hyde_enabled`)
@@ -18,7 +18,7 @@
 
 - **언제 켜나** : 짧은/대화식 질문이 많은 챗봇 (FAQ 봇, 고객지원). 기술 정확도 봇(`rag_hyde_enabled=False` 권장 — 가설 답이 오답 방향으로 검색을 끌 수 있음).
 - **alpha** : 0.5 가 기본 (원본 ⊕ HyDE 균등). 0.7 은 보수적(원본 비중↑), 0.3 은 공격적(HyDE 비중↑).
-- **모델** : `gpt-4o-mini` 권장 — 빠르고 한국어 자연. 비용은 LLM 1회 + 임베딩 1회 추가.
+- **모델** : `openai/gpt-5.4-mini`(설정 `rag_hyde_model` 기본값) — 빠르고 한국어 자연. 비용은 LLM 1회 + 임베딩 1회 추가. (`RAG_HYDE_MODEL` 환경변수로 덮어쓰기 가능)
 - **실패 fallback** : LLM 또는 임베딩 실패 시 자동으로 원본 쿼리만 사용 (모듈: `rag_hyde.py:embed_query_with_hyde`).
 
 ## RAGFlow 에서 가져올 것 — 우선순위 표
@@ -40,7 +40,7 @@
 **목적**: 기존 RAG 파이프라인을 건드리지 않고 정확도 추가 향상.
 
 - [x] 가시성-aware Skills 매칭 (이번 PR)
-- [ ] 적응형 인용 임계값 — 현재 `rerank_min_score=3.0` 고정 → 결과 부족 시 자동 하향 (이번/다음 PR)
+- [x] 적응형 인용 임계값 — `reranker.adaptive_min_score()` 로 결과 부족 시 단계 하향 + `compute_dynamic_floor()` 로 쿼리 길이에 따라 floor 동적 보정(짧은 쿼리는 strict, 긴 쿼리는 loose). 절대 하한은 `rag_score_floor`(기본 2.0).
 - [ ] PageRank/upvote 메타 부스트 — rerank 점수에 `+ 0.5 * log(1 + upvote_count)` 가산
 
 ### Phase 2 — 다음 PR (여전히 내재화)

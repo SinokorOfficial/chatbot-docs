@@ -14,23 +14,33 @@ app/
  ├─ documents/page.tsx /documents
  ├─ chatbots/page.tsx /chatbots (신규)
  ├─ chatbots/[id]/page.tsx /chatbots/{id} (신규)
- ├─ tools/page.tsx /tools (신규)
  ├─ admin/page.tsx /admin (신규)
+ ├─ team/page.tsx /team
+ ├─ qa/page.tsx /qa
  ├─ notices/page.tsx /notices
  ├─ faq/page.tsx /faq
  ├─ mypage/page.tsx /mypage
- ├─ studio/page.tsx /studio
- └─ team/page.tsx /team
+ ├─ guide/page.tsx /guide
+ ├─ tools/page.tsx /tools (개발 전용)
+ ├─ skills/page.tsx /skills (개발 전용)
+ ├─ workflows/page.tsx /workflows (개발 전용)
+ ├─ schedules/page.tsx /schedules (개발 전용)
+ ├─ workspaces/page.tsx /workspaces (개발 전용)
+ └─ studio/page.tsx /studio (개발 전용)
 ```
+
+> **운영/개발 티어(ADR-0009)** — `/tools`·`/skills`·`/workflows`·`/schedules`·`/studio`·`/workspaces` 는 개발 전용이다. 운영 빌드(`NEXT_PUBLIC_FEATURE_SET=rag`)에서는 `shared/lib/features.ts` 의 `DEV_ONLY_PATH_PREFIXES` 와 `isRagOnly` 가드로 메뉴·명령 팔레트·가이드에서 숨겨지고, 백엔드도 해당 라우터를 등록하지 않아 차단된다.
+
+> **레이아웃 표준** — 본문은 두 컨테이너로 통일한다: `.page-shell`(72rem · 목록/관리/그리드)와 `.page-shell--narrow`(56rem · 읽기/폼/상세). AppShell 헤더도 72rem 폭에 가장자리 정렬한다(`app/globals.css`).
 
 ## 2. AppShell
 
 - `(workspace)` 하위 페이지 공통 헤더를 렌더.
-- 헤더 요소: 브랜드 → 네비게이션(채팅·문서·챗봇·도구·FAQ·공지·마이·관리·팀) → 테마 피커 → 사용자 이름 → **로그아웃 버튼**.
+- 헤더 요소: 브랜드 → 네비게이션(`NavMenu`) → 명령 팔레트(⌘K, `CommandPalette`) → 테마 피커 → 사용자 메뉴(`AvatarMenu` — 마이페이지·관리·**로그아웃**). 네비 항목은 `shared/layout/NavMenu.tsx` 의 `VISIBLE_GROUPS` 가 `isRagOnly` 로 분기 — 운영(rag) 빌드는 도구·스킬·워크플로·스케줄 등 개발 전용 항목을 숨긴다(`soon` 더미 포함).
 - `/chat` 경로에서는 전폭 레이아웃을 위해 헤더가 감춰지지만, 좌측 사이드바 하단에 **공지 미니 목록**, **사용량 미니 카드**, **마이페이지 링크**, **로그아웃 버튼**을 배치합니다.
 
 ### 로그아웃 동작
-`components/AppShell.tsx`의 헤더 우측과 `/chat`의 사이드바에 공통으로 아래 콜백을 사용합니다.
+`shared/layout/AppShell.tsx` 의 사용자 메뉴(`AvatarMenu`)와 `/chat` 사이드바에 공통으로 `shared/lib/api.ts` 의 `logout()` 콜백을 사용합니다.
 
 ```tsx
 const handleLogout = () => {
@@ -44,7 +54,7 @@ const handleLogout = () => {
 ## 3. 상태 관리
 
 - **전역 상태 없음** — 각 페이지가 `useEffect`에서 필요한 API를 호출하고 `useState`로 보관.
-- **인증 토큰**: `localStorage.token`. `lib/api.ts`의 `apiFetch()`가 자동으로 `Authorization` 헤더에 주입.
+- **인증 토큰**: `localStorage.token`. `shared/lib/api.ts` 의 `apiFetch()` 가 자동으로 `Authorization: Bearer` 헤더에 주입.
 - **테마**: `ThemeProvider`가 `localStorage.theme` 관리.
 
 ## 4. 챗봇 사용 UI (채팅 페이지 변경점)
@@ -72,7 +82,7 @@ const handleLogout = () => {
 
 - 탭 1: 승인 대기 사용자 목록 → 승인/반려
 - 탭 2: 팀 목록 (super_admin 전용) → 팀 신규 생성, 초대코드 복사
-- 탭 3: 도구 카탈로그 (super_admin 전용) → 도구 추가/비활성화
+- 탭 3: 도구 카탈로그 (super_admin 전용, **개발 전용·운영 미노출**) → 도구 추가/비활성화
 
 ## 8. 공지 · FAQ · 마이페이지
 
@@ -111,5 +121,7 @@ const handleLogout = () => {
 
 ## 12. 의존성
 
-- `next@15`, `react@19`, `tailwindcss@3.4`, `react-markdown`, `rehype-highlight`, `remark-gfm`.
+- `next@15`, `react@19`, `tailwindcss@3.4`, `react-markdown`, `rehype-highlight`, `remark-gfm`, `@xyflow/react`(워크플로 2D 캔버스 · 개발 전용), `three`(3D 캔버스).
+- 한글 본문 폰트는 Pretendard Variable 로컬 번들(`app/fonts/PretendardVariable.woff2`, `--font-pretendard`) — 라틴/숫자는 기존 폰트, 한글 글리프만 Pretendard 가 받친다.
+- 레이아웃은 `.page-shell`(72rem) / `.page-shell--narrow`(56rem) 표준(`app/globals.css`).
 - 새 페이지는 `use client` 지시어 필요(모두 인터랙티브).

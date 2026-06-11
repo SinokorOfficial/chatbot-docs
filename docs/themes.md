@@ -68,7 +68,7 @@ tokens:
 | Apple | 부드러운 곡선 | `radius: {sm:8, md:12, lg:18}` |
 | Apple | iCloud 보라 보조 | `accent_secondary: #bf5af2` |
 
-## 시드된 테마 (현재 6개)
+## 시드된 테마 (현재 16개)
 
 | slug | 브랜드 | 카테고리 | 특징 |
 |---|---|---|---|
@@ -78,8 +78,18 @@ tokens:
 | `apple` | Apple | luxury-tech | 큰 여백, SF Pro, 부드러운 곡선 |
 | `github` | GitHub | developer-tools | 다크 우선, Primer, 모노스페이스 강조 |
 | `stripe` | Stripe | fintech | 네이비 + 보라, 그라데이션 |
+| `linear` | Linear | productivity-saas | — |
+| `notion` | Notion | productivity-saas | — |
+| `vercel` | Vercel | developer-tools | — |
+| `openai` | OpenAI | ai-platform | — |
+| `claude` | Anthropic | ai-platform | — |
+| `nike` | Nike | lifestyle-sport | — |
+| `spotify` | Spotify | media-consumer | — |
+| `tesla` | Tesla | automotive | — |
+| `airbnb` | Airbnb | lifestyle-consumer | — |
+| `hyundai` | Hyundai | automotive | — |
 
-전체: 리포 내 `backend/config/themes.yaml` 참조.
+개수·세부 토큰은 변동이 잦으므로 단일 출처인 리포 내 `backend/config/themes.yaml` 을 기준으로 한다.
 
 ## 프론트 적용 방법
 

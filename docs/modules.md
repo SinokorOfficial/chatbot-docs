@@ -19,20 +19,24 @@
 | `types_email.py` | 이메일 타입(Pydantic) |
 | `middleware/request_logging.py` | 요청 로깅 + `X-Request-Id` |
 
-### 1.2 라우터 (`routers/`)
+### 1.2 라우터 (`features/<도메인>/router.py`)
 
-| 파일 | Prefix | 주요 엔드포인트 |
+백엔드는 feature-sliced 구조다. 각 도메인은 `backend/app/features/<도메인>/router.py` 로 분리되며 `main.py` 가 등록한다. 운영 핵심 도메인은 항상 등록되고, 개발 전용 도메인은 `FEATURE_*` 플래그가 꺼진 운영(prod)에서 `main.py` 가 등록 자체를 생략해 모든 경로가 404 가 된다(ADR-0009).
+
+| 도메인 | Prefix | 주요 엔드포인트 |
 | ---- | ------ | ---------------- |
-| `auth.py` | `/auth` | `POST /register`, `POST /login`, `GET /me`, `GET /team` |
-| `team.py` | `/team` | 멤버 조회/추가, 초대코드 로테이트, 감사 로그 |
-| `documents.py` | `/documents` | 업로드, 목록, 삭제, 개인 문서 공유 |
-| `chatbots.py` (신규) | `/chatbots` | 생성·수정·삭제, 목록(Public 포함), 문서/도구 연결 |
-| `tools.py` (신규) | `/tools` | 카탈로그 목록, 자격증명 등록, 건별 테스트 실행 |
-| `admin.py` (신규) | `/admin` | 승인 대기 목록, 승인/반려, 팀 생성(super_admin) |
-| `conversations.py` | `/conversations` | 대화 목록·상세·삭제·제목 변경 |
-| `chat.py` | `/chat` | `POST /stream` (SSE), `POST /regenerate` |
-| `images.py` | `/images` | DALL·E 이미지 생성 |
-| `models_catalog.py` | `/models` | 사용 가능한 LLM 목록 |
+| `auth` | `/auth` | `POST /register`, `POST /login`, `GET /me`, `GET /team` |
+| `team` | `/team` | 멤버 조회/추가, 초대코드 로테이트, 감사 로그 |
+| `documents` | `/documents` | 업로드, 목록, 삭제, 개인 문서 공유 |
+| `chatbots` (신규) | `/chatbots` | 생성·수정·삭제, 목록(Public/Shared 포함), 문서/도구 연결 |
+| `admin` (신규) | `/admin` | 승인 대기 목록, 승인/반려, 팀 생성(super_admin) |
+| `conversations` | `/conversations` | 대화 목록·상세·삭제·제목 변경 |
+| `chat` | `/chat` | `POST /stream` (SSE), `POST /regenerate` |
+| `images` | `/images` | DALL·E 이미지 생성 |
+| `models_catalog` | `/models` | 사용 가능한 LLM 목록 |
+| `themes` · `notices` · `usage` · `faqs` · `stats` · `metrics` | 각 prefix | 테마·공지·사용량·Q&A/FAQ·통계·메트릭 (운영 포함) |
+| `tools` *(개발 전용)* | `/tools` | 카탈로그 목록, 자격증명 등록, 커스텀 도구 등록 — `FEATURE_CUSTOM_TOOLS` off 시 미등록(404) |
+| `skills` · `workflows` · `schedules` · `claude_code` · `workspace` *(개발 전용)* | 각 prefix | 스킬·워크플로·스케줄·Claude Code·작업공간 — 각 `FEATURE_*` off 시 미등록(404) |
 
 ### 1.3 서비스 (`services/`)
 
@@ -44,9 +48,9 @@
 | `ingest.py` | 문서 파이프라인 오케스트레이션 | `process_document_job(document_id)` |
 | `rag.py` | 하이브리드 검색(RRF) | `hybrid_search_chunk_ids()`, `fetch_chunk_contents()`, `build_context_snippets()` |
 | `chatbot_rag.py` (신규) | 챗봇 스코프가 적용된 RAG | `search_for_chatbot(chatbot, user, db, query)` |
-| `chatbot_service.py` (신규) | 챗봇 로딩/검증, 권한 체크 | `get_chatbot_for_user()`, `list_chatbots_for_user()` |
-| `tool_registry.py` (신규) | 도구 실행 · 시드 카탈로그 | `dispatch(tool_slug, args, ctx)`, `load_builtin_catalog()` |
-| `agent.py` | 다단계 에이전트 루프, 툴 콜 | `run_agent(model, messages, workspace, tools)` |
+| `chatbot_service.py` (신규) | 챗봇 로딩/검증, 권한 체크 | `get_for_use()`, `_user_can_access()` |
+| `tool_registry.py` *(도구 마켓=개발 전용·운영 미노출)* | 도구 실행 · 시드 카탈로그 | `dispatch(tool_slug, args, ctx)`, `seed_builtin_catalog()` |
+| `agent.py` | 다단계 에이전트 루프, 툴 콜 | `run_agent(model, messages, workspace, *, allowed_tools=None, claude_code_options=None, max_steps=6)` |
 | `code_sandbox.py` | Docker 파이썬 샌드박스 | `run_code(code, files, timeout)` |
 | `web_search.py` | DuckDuckGo 검색 | `search_web(q, n)` |
 | `stock.py` | 네이버 주식 시세/시세 이력 | `fetch_stock_price`, `fetch_stock_history` |
@@ -66,7 +70,7 @@
 | 문서↔벡터스토어 동기화 | ORM cascade + 라우터 | `models.py` (cascade), `routers/documents.py` |
 | 도구 마켓/바인딩 | 라우터 + 서비스 | `routers/tools.py`, `services/tool_registry.py` |
 | HWP/HWPX 파서 | 서비스 | `services/document_parser.py` |
-| 전역 로그아웃 | 프론트 | `components/AppShell.tsx` |
+| 전역 로그아웃 | 프론트 | `shared/layout/AppShell.tsx` (+ `shared/lib/api.ts` 의 `logout()`) |
 
 ---
 
@@ -77,7 +81,9 @@
 ```
 frontend/
 ├─ app/
-│ ├─ layout.tsx # 최상위 HTML 레이아웃 + 폰트
+│ ├─ layout.tsx # 최상위 HTML 레이아웃 + Pretendard 폰트
+│ ├─ fonts/PretendardVariable.woff2  # 한글 본문 로컬 번들(--font-pretendard)
+│ ├─ globals.css # .page-shell(72rem) / .page-shell--narrow(56rem)
 │ ├─ page.tsx # 랜딩
 │ ├─ login/page.tsx # 로그인
 │ ├─ register/page.tsx # 가입 (승인 대기 안내 포함)
@@ -87,24 +93,18 @@ frontend/
 │ ├─ documents/page.tsx # 문서 관리
 │ ├─ chatbots/page.tsx # (신규) 챗봇 목록/생성
 │ ├─ chatbots/[id]/page.tsx # (신규) 챗봇 편집·문서·도구 바인딩
-│ ├─ tools/page.tsx # (신규) 도구 마켓플레이스
 │ ├─ admin/page.tsx # (신규) 가입 승인 / 팀 관리
-│ ├─ studio/page.tsx # 이미지/코드 실험(기존)
-│ └─ team/page.tsx # 팀 감사(기존)
-├─ components/
-│ ├─ AppShell.tsx # 헤더, 네비, 로그아웃 버튼
-│ ├─ AuthScene.tsx # 인증 배경 애니메이션
-│ ├─ ChatMessage.tsx # 메시지 렌더
-│ ├─ SandboxPanel.tsx # 샌드박스 출력
-│ ├─ ToolStepBlock.tsx # 툴 스텝 표시
-│ ├─ ThemePicker.tsx / ThemeProvider.tsx
-│ ├─ ChatbotCard.tsx (신규) # 챗봇 카드
-│ ├─ ToolCard.tsx (신규) # 도구 카탈로그 카드
-│ └─ Providers.tsx
-└─ lib/
- ├─ api.ts # `apiFetch` · 토큰 저장·Bearer 헤더
- ├─ theme.ts # 테마 상수
- └─ userError.ts # ApiUserError 포맷터
+│ ├─ team/page.tsx # 팀 감사
+│ ├─ qa·notices·faq·mypage·guide/page.tsx  # Q&A·공지·FAQ·마이·가이드 (운영 포함)
+│ ├─ tools/page.tsx # 도구 마켓 (개발 전용)
+│ ├─ skills·workflows·schedules·workspaces/page.tsx  # (개발 전용)
+│ └─ studio/page.tsx # 그림 만들기(이미지 생성, 개발 전용)
+└─ shared/
+ ├─ layout/ # AppShell.tsx · NavMenu.tsx · CommandPalette.tsx · AvatarMenu.tsx
+ ├─ lib/ # api.ts · features.ts(isRagOnly·DEV_ONLY_PATH_PREFIXES) · theme.ts · userError.ts · track.ts
+ ├─ ui/ # Toast · Skeleton · Alert · ConfirmDialog · Celebrate · SuccessFollowup · EmptyState · PageHeader …
+ ├─ theme/ # ThemeProvider · BrandThemeProvider · RadialThemePicker …
+ └─ providers/ # Providers.tsx
 ```
 
 ### 2.2 인증·상태 관리

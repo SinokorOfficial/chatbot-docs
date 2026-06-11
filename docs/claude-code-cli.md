@@ -1,6 +1,8 @@
 # Claude Code CLI 옵션 매핑 · MCP/스킬 연동
 
-클로드 코드 모드(`/chat` direct routing)는 사용자의 요청을 **실제 `claude` CLI** 로 그대로 흘려보냅니다. 이 문서는 2026-06-10 기준 **claude CLI 2.1.170 을 실측**해 정리한 *실제 옵션 ↔ 앱 인자/페이로드* 매핑과, 앱의 MCP 서버·Skill 을 세션 스코프로 결선하는 구조를 정리합니다.
+> **개발 전용(운영 미노출)** — 이 매핑은 클로드 코드 모드(ADR-0009 개발 티어 전용)에만 적용됩니다. 운영(`FEATURE_CLAUDE_CODE=off`)에서는 해당 모드 자체가 비활성입니다.
+
+클로드 코드 모드(`/chat` direct routing)는 사용자의 요청을 **실제 `claude` CLI** 로 그대로 흘려보냅니다. 이 문서는 2026-06 기준 **claude CLI 2.1.169 를 실측**(`claude_runner.py` 주석 기준)해 정리한 *실제 옵션 ↔ 앱 인자/페이로드* 매핑과, 앱의 MCP 서버·Skill 을 세션 스코프로 결선하는 구조를 정리합니다.
 
 > 배경: 과거 일부 옵션은 *유추* 로 추가돼 있었습니다(예: `--max-turns`). 실 CLI 에 존재하지 않아 무시되거나 오류였고, 이번에 실측값으로 교정했습니다.
 
@@ -126,7 +128,7 @@
 
 ## 슬래시 명령(`/`) 동기화표 — 웹 모드 `/` 메뉴 ↔ 실제 CLI 카탈로그
 
-클로드 코드 모드의 채팅 입력창에서 `/` 를 누르면 뜨는 빠른 명령 메뉴는 **실제 `claude` CLI 슬래시 카탈로그**(2026-06-10 전수 재추출 — 총 **87개**: web-action 8 · cc-passthrough 33 · cli-only 46)와 동기화됩니다. 동기화의 단일 출처(SSOT)는 데이터 전용 파일 **`frontend/features/chat/claudeCodeCommands.ts`** 이며, 카탈로그는 **claude CLI 2.1.170 바이너리의 명령 정의(local-jsx name 필드) 직접 스캔**을 **`~/.claude/i18n/trans.py`**(한글 설명 88종)와 교차 대조해 만들었습니다. **유추 금지** — 명령/설명 갱신 시 바이너리 스캔 결과·`trans.py` 와 대조하고, 카탈로그가 단일 출처가 되도록 UI 는 카탈로그를 import 만 합니다(`ccPassthroughCommands()` / `cliOnlyCommands()` / `webActionCommands()`).
+클로드 코드 모드의 채팅 입력창에서 `/` 를 누르면 뜨는 빠른 명령 메뉴는 **실제 `claude` CLI 슬래시 카탈로그**(2026-06-10 전수 재추출 — 총 **87개**: web-action 8 · cc-passthrough 33 · cli-only 46)와 동기화됩니다. 동기화의 단일 출처(SSOT)는 데이터 전용 파일 **`frontend/features/chat/claudeCodeCommands.ts`** 이며, 카탈로그는 **claude CLI 2.1.169 바이너리의 명령 정의(local-jsx name 필드) 직접 스캔**을 **`~/.claude/i18n/trans.py`**(한글 설명 88종)와 교차 대조해 만들었습니다. **유추 금지** — 명령/설명 갱신 시 바이너리 스캔 결과·`trans.py` 와 대조하고, 카탈로그가 단일 출처가 되도록 UI 는 카탈로그를 import 만 합니다(`ccPassthroughCommands()` / `cliOnlyCommands()` / `webActionCommands()`).
 
 > 2026-06-10 전수 재추출에서 기존 카탈로그(34개)의 이름 오기 5건을 교정했습니다: `init-verifier`→`init-verifiers`, `cost`→`usage`(별칭 `cost`/`stats`), `primer`→`powerup`, `privacy`→`privacy-settings`, `heap`→`heapdump`.
 

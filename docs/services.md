@@ -20,7 +20,7 @@ mindmap
  자동 청크/임베딩(text-embedding-3-large)
  챗봇
  Private / Public(팀 내)
- Shared(팀 간 공유) - 계획
+ Shared(팀 간 공유) - 구현됨(visibility=shared + chatbot_team_access)
  RAG 스코프 linked_only / owner_visible / team_all
  도구 바인딩
  도구
@@ -36,8 +36,8 @@ mindmap
  인프라
  PostgreSQL + pgvector
  Docker 샌드박스
- Azure 배포(계획)
- CI/CD(계획)
+ Azure 배포(Container Apps · PostgreSQL/pgvector · Blob · Key Vault, koreacentral — 라이브)
+ CI/CD(GitHub Actions deploy.yml · OIDC · 무중단 롤링)
 ```
 
 ## 2. 제공 기능 요약표
@@ -47,10 +47,10 @@ mindmap
 | 인증 | 이메일/비밀번호, JWT, 초대코드 가입, 승인/비활성화 | 관리자 문서(내부) · [rbac.md](./rbac.md) |
 | 대화 | SSE 스트리밍, 멀티모달(이미지·파일), 모델 선택, 제목 자동 생성 | [api.md](./api.md#chat-chat) |
 | 문서 RAG | 업로드→파싱→청크→임베딩, 삭제 cascade, 개인/팀/공유 스코프 | [document_rag.md](./document_rag.md) |
-| 챗봇 | 시스템 프롬프트·모델·문서·도구 번들링, Public/Private | [chatbot.md](./chatbot.md) |
-| 교차팀 공유 | 특정 팀이 만든 RAG 챗봇을 다른 팀이 사용 | [chatbot_sharing.md](./chatbot_sharing.md) |
-| 도구 | builtin/oauth/http/mcp 4종, 자격증명 안전 저장 | [tools.md](./tools.md) |
-| 코드 실행 | Docker 기반 Python 샌드박스, 네트워크 차단 | [sandbox.md](./sandbox.md) |
+| 챗봇 | 시스템 프롬프트·모델·문서·도구 번들링, Private/Public/Shared | [chatbot.md](./chatbot.md) |
+| 교차팀 공유 | 특정 팀이 만든 RAG 챗봇을 다른 팀이 사용 (구현됨: visibility=shared + chatbot_team_access) | [chatbot_sharing.md](./chatbot_sharing.md) |
+| 도구 *(개발 전용·운영 미노출)* | builtin/oauth/http/mcp 4종, 자격증명 안전 저장 (FEATURE_CUSTOM_TOOLS·isRagOnly 가드) | [tools.md](./tools.md) |
+| 코드 실행 *(개발 전용·운영 미노출)* | Docker 기반 Python 샌드박스, 네트워크 차단 | [sandbox.md](./sandbox.md) |
 | 감사 | 팀원 대화 열람(team_auditor+) | [rbac.md](./rbac.md) |
 | 배포 | Azure + GitHub Actions CI/CD | 배포 문서(내부) |
 
@@ -67,7 +67,7 @@ mindmap
 3. [ 승인 ] 클릭 → `approval_status=approved` → 직원 로그인 가능.
 4. 이직 시 [ 비활성화 ] → 로그인 즉시 차단, 이력은 보존.
 
-### (c) 타 팀에서 제작한 챗봇 사용 (교차팀 공유, 계획)
+### (c) 타 팀에서 제작한 챗봇 사용 (교차팀 공유)
 1. A팀 팀장이 챗봇을 `shared` 가시성으로 전환 → 공유 대상 팀 선택.
 2. B팀 팀원 `/chatbots`에서 해당 챗봇 표시(공유 뱃지).
 3. B팀원이 질문 → 응답은 A팀 소유 문서 기반. (문서 직접 열람 권한은 없음 — 챗봇 경유만 허용)
@@ -101,12 +101,14 @@ mindmap
 | `/login` · `/register` | 로그인·가입(초대코드) |
 | `/chat` | 실시간 대화, 챗봇 선택, 파일/이미지 첨부 |
 | `/documents` | 업로드·삭제·공유 |
-| `/chatbots` | 내 챗봇 + 팀 공개 챗봇 + 공유 받은 챗봇(계획) |
+| `/chatbots` | 내 챗봇 + 팀 공개 챗봇 + 공유 받은 챗봇(shared) |
 | `/chatbots/[id]` | 편집: 기본/문서/도구 3 탭 |
-| `/tools` | 도구 마켓, 자격증명 연결 |
 | `/admin` | 승인 대기 / 팀원 관리(비활성화) / 팀 관리 |
 | `/team` | 멤버 목록 · 감사 |
-| `/studio` | 이미지/코드 실험실 |
+| `/qa` · `/notices` · `/faq` · `/mypage` · `/guide` | Q&A·공지·FAQ·마이페이지·가이드 (운영 포함) |
+| `/tools` *(개발 전용)* | 도구 마켓, 자격증명 연결 |
+| `/skills` · `/workflows` · `/schedules` · `/workspaces` *(개발 전용)* | 스킬·워크플로·스케줄·작업공간 |
+| `/studio` *(개발 전용)* | 그림 만들기(이미지 생성) |
 
 ## 6. 품질 · SLO 초안 (합의 대상)
 

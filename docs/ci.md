@@ -69,14 +69,17 @@ Python 3.12 + `mkdocs-material` 설치 후 `mkdocs build --strict` 를 실행합
 > 레벨이라 빌드를 실패시키지 않습니다. 빌드를 **실패** 시키는 것은 `WARNING`
 > (예: 존재하지 않는 대상으로의 끊긴 링크) 입니다.
 
-### 알려진 strict 실패 (이 워크플로우 도입 시점)
+### strict 빌드 현황
 
-`adr/0001-sandbox-runtime.md` 가 docs 트리 **밖** 의 백엔드 소스 파일
-(`../../backend/app/services/code_sandbox.py`, `.../agent.py`) 로 직접 링크하고
-있어 strict 빌드가 이 2건의 `WARNING` 으로 중단됩니다. 이는 CI 도입 *이전부터*
-존재하던 문제로, docs job 이 의도대로 "깨진 링크를 빨갛게" 드러내는 예시입니다.
-`fail-fast: false` 효과로 frontend·backend job 은 영향 없이 끝까지 실행됩니다.
-해당 ADR 링크는 docs 소유자가 별도로 수정해야 합니다(이 CI 변경의 범위 밖).
+현재 `mkdocs build --strict` 는 **통과**합니다(exit 0). `adr/0001-sandbox-runtime.md`
+가 백엔드 소스 파일(`backend/app/services/code_sandbox.py` 등)을 언급하지만, 이는
+마크다운 링크가 아니라 **인라인 코드 스팬**이라 strict 가 링크로 해석하지 않습니다.
+ADR 내부의 문서 간 링크(`../sandbox.md`, `0002-...md` 등)는 모두 실재 파일을 가리킵니다.
+
+남는 출력은 nav 미포함 페이지(`ci.md`, `known-issues.md`)와 일부 앵커 누락 등
+**INFO** 레벨뿐이며, 이는 strict 빌드를 실패시키지 않습니다(실패는 `WARNING`,
+예: 존재하지 않는 대상으로의 끊긴 링크). 세 job 은 `needs` 의존이 없어 서로
+영향을 주지 않고 끝까지 실행됩니다.
 
 ## 로컬에서 동일하게 검증하기
 

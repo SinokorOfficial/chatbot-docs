@@ -1,5 +1,7 @@
 # Skills 마켓플레이스
 
+> **개발 전용(운영 미노출)** — 스킬 마켓플레이스는 ADR-0009 의 개발 티어 전용 기능입니다. 운영(`NEXT_PUBLIC_FEATURE_SET=rag` / `FEATURE_SKILLS=off`)에서는 `main.py` 가 `/skills` 라우터를 등록하지 않아 404 로 차단되고(`DEV_ONLY_PATH_PREFIXES`·`isRagOnly`로) 메뉴/화면도 숨겨집니다.
+
 > 챗봇이 사용자 쿼리에 답할 때 자동으로 참조하는 **노하우 카드**.
 > 한국 비즈니스, 개발 패턴, 디자인 가이드 등 무엇이든 마크다운으로 등록.
 

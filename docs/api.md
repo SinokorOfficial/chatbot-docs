@@ -2,7 +2,7 @@
 
 > 기본 경로: `http://localhost:8000` (개발), CORS는 `localhost:3000`, `localhost:3001`, `10.x.x.x:3001` 허용.
 > 운영 도메인은 `BACKEND_ALLOWED_ORIGINS` env(콤마 구분)로 외부화 가능.
-> 인증: `Authorization: Bearer <jwt>` 또는 `HttpOnly` 쿠키 (둘 다 받음 — Bearer 우선).
+> 인증: `Authorization: Bearer <jwt>` 헤더만 사용합니다. (서버는 `HTTPBearer` 만 검사하며 쿠키 인증은 구현되어 있지 않습니다. 프론트는 토큰을 보관했다가 매 요청 헤더에 실어 보냅니다.)
 
 ## 헬스 (`/health` · `/healthz` · `/readyz`)
 
@@ -16,9 +16,9 @@
 
 | 메서드 | 경로 | Body | 응답 | 설명 |
 | ------ | ---- | ---- | ---- | ---- |
-| POST | `/auth/register` | `{email, password, full_name, invite_code?, create_team_name?}` | `{access_token}` + `Set-Cookie: access_token` | 가입. 팀장 초대코드면 즉시 승인, 그 외엔 `pending` |
-| POST | `/auth/login` | `{email, password}` | `{access_token}` + `Set-Cookie: access_token` | 로그인. HttpOnly·SameSite=Lax 쿠키 동시 발급. 승인 대기 시 403 |
-| POST | `/auth/logout` | — | 204 | `access_token` 쿠키 즉시 폐기 |
+| POST | `/auth/register` | `{email, password, full_name, team_admin_email?, invite_code?, create_team_name?}` | `{access_token, approval_status}` | 가입. super_admin 발신 초대코드면 즉시 승인(team_admin), 그 외엔 `pending`(이때 access_token 은 빈 문자열) |
+| POST | `/auth/login` | `{email, password}` | `{access_token, approval_status}` | 로그인(JSON 으로 토큰 반환, 쿠키 미발급). 자격 불일치 401, 비활성/반려/승인 대기 계정은 403 |
+| POST | `/auth/logout` | — | 204 | 상태 없는 JWT 이므로 서버는 아무 작업도 하지 않음(204). 실제 로그아웃은 프론트가 토큰을 삭제해 완료 |
 | GET | `/auth/me` | — | `UserOut` | 현재 사용자 |
 | GET | `/auth/team` | — | `TeamOut` | 내 팀 |
 
@@ -53,7 +53,7 @@
 | 메서드 | 경로 | 설명 |
 | ------ | ---- | ---- |
 | POST | `/documents/upload` | 멀티파트. `scope=team\|personal` + 파일 N개 |
-| GET | `/documents` | 팀 문서 목록 |
+| GET | `/documents` | 내게 보이는 팀 문서 목록(팀 공용 + 본인 개인 + 본인에게 공유된 문서만 — 타인 개인 문서는 격리). `q=`/`folder=` 필터 지원 |
 | DELETE | `/documents/{id}` | 삭제 → 청크/공유/챗봇링크 cascade 삭제 + 파일 unlink |
 | POST | `/documents/{id}/share` | 개인 문서를 팀원에게 공유 |
 
@@ -61,9 +61,9 @@
 
 자세한 내용은 [chatbot.md](./chatbot.md) 참조.
 
-## Tools (`/tools`, 신규)
+## Tools (`/tools`, 신규 · **개발 전용(운영 미노출, ADR-0009)**)
 
-자세한 내용은 [tools.md](./tools.md) 참조.
+도구 마켓은 개발 티어 전용입니다. 운영(`APP_ENV=prod`, `FEATURE_CUSTOM_TOOLS` 미설정)에서는 `main.py` 가 라우터 자체를 등록하지 않아 모든 `/tools/*` 가 404 입니다. 자세한 내용은 [tools.md](./tools.md) 참조.
 
 **보안 가드 (2026-05-20 추가)**:
 - `POST /tools/custom` 와 `PATCH /tools/{id}` 의 `endpoint` URL 은 SSRF 검사를 통과해야 함. 사설 IP(10/172.16-31/192.168), loopback(127/::1), link-local(169.254 — AWS/GCP/Azure 메타데이터), 메타데이터 호스트명(`metadata.google.internal` 등) 은 자동 차단. 사내 tool-server 가 사설망에 있다면 `SSRF_ALLOWED_HOSTS=host1,host2` env 로 화이트리스트.
@@ -83,7 +83,7 @@
 
 | 메서드 | 경로 | 설명 |
 | ------ | ---- | ---- |
-| POST | `/chat/stream` | SSE. Body: `{conversation_id?, chatbot_id?, model, message, use_rag, image_base64?, files?, claude_code_mode?, reasoning_effort?, claude_code_options?}` |
+| POST | `/chat/stream` | SSE. Body: `{conversation_id?, chatbot_id?, model, message, use_rag, image_base64?, files?, claude_code_mode?, reasoning_effort?, claude_code_options?}`. **`claude_code_mode`/`claude_code_options`/`reasoning_effort` 는 개발 전용** — 운영(`FEATURE_CLAUDE_CODE` OFF)에서 `claude_code_mode=true` 면 403(`이 환경에서는 Claude Code 모드를 사용할 수 없습니다.`) |
 | POST | `/chat/regenerate` | 마지막 응답 재생성 |
 
 `files[]` 항목은 `{filename, b64, relpath?}` 입니다. `relpath` 는 **폴더 첨부** 시 상대 경로(예: `src/app/page.tsx`)로, 클로드 코드 모드 워크스페이스에 디렉토리 구조를 그대로 재현하는 데 쓰입니다. 구조 보존은 백엔드 `app/core/pathsafe.safe_relative_path` 게이트를 통과한 경로에만 적용되며, traversal 위험 경로는 basename 으로 격하됩니다. `claude_code_mode=true` 면 LLM/RAG/메모리 매칭을 모두 건너뛰고 `run_claude_code_stream` 으로 직행하고, `reasoning_effort` 는 실제 CLI `--effort`(`low|medium|high|xhigh|max`)로 전달됩니다.

@@ -1,5 +1,7 @@
 # 도구 마켓플레이스
 
+> **개발 전용(운영 미노출)** — 도구 마켓플레이스는 ADR-0009 의 개발 티어 전용 기능입니다. 운영(`APP_ENV=prod` / `NEXT_PUBLIC_FEATURE_SET=rag`)에서는 `FEATURE_CUSTOM_TOOLS=off` 라 `main.py` 가 `/tools` 라우터를 등록하지 않아 모든 `/tools/*` 가 404 로 차단되며, 프론트에서도 메뉴/화면이 숨겨집니다(`shared/lib/features.ts` 의 `DEV_ONLY_PATH_PREFIXES`·`isRagOnly`). 운영에는 RAG 챗봇 4기능만 노출됩니다.
+
 ## 1. 목표
 
 - 기본 제공 도구(빌트인)를 클릭 한 번으로 챗봇에 장착.
@@ -20,7 +22,7 @@ tools (카탈로그 — 시스템 전역)
 
 | kind | 실행 방식 | 예시 |
 | ---- | -------- | ---- |
-| `builtin` | `tool_registry.py` 내 파이썬 함수 | `web_search`, `code_interpreter`, `image_generate`, `stock_price`, `stock_history` |
+| `builtin` | 에이전트 루프(`agent.py`)에서 직접 실행하는 파이썬 핸들러 | `web_search`, `claude_code`, `image_generate`, `stock_price`, `stock_history`, `schedule_query` |
 | `http` | 등록된 URL로 POST 호출 (webhook 스타일) | 사내 API, 슬랙 Incoming Webhook |
 | `oauth` | 자격증명을 꺼내 외부 API 호출 | Gmail 발송, 캘린더 조회, Microsoft 365 |
 | `mcp` | MCP 서버의 도구 호출 | `mcp__claude_ai_Gmail__*` 등 Anthropic MCP 커넥터 |
@@ -32,17 +34,20 @@ tools (카탈로그 — 시스템 전역)
 | slug | display_name | category | kind | 기본 장착 대상 |
 | ---- | ------------ | -------- | ---- | -------------- |
 | `web_search` | 웹 검색 | search | builtin | 모든 챗봇 권장 |
-| `code_interpreter` | 코드 실행 | data | builtin | 분석용 챗봇 |
+| `claude_code` | 코드 작업 (Claude Code) | data | builtin | 분석/코딩 챗봇 (개발 전용) |
 | `image_generate` | 이미지 생성 | productivity | builtin | 마케팅 챗봇 |
 | `stock_price` | 실시간 주가 | data | builtin | 금융 챗봇 |
 | `stock_history` | 주가 이력 CSV | data | builtin | 금융 챗봇 |
-| `gmail.send` | 지메일 발송 | communication | oauth | 요청 시 |
-| `gmail.search` | 지메일 검색 | communication | oauth | |
-| `kakao.send_message` | 카카오톡 나에게 보내기 | communication | oauth | |
-| `kakao.friends_message` | 카카오톡 친구에게 보내기 | communication | oauth | |
-| `google_calendar.create_event` | 구글 캘린더 일정 등록 | productivity | oauth | |
-| `microsoft365.outlook_search` | 아웃룩 메일 검색 | communication | oauth | |
-| `webhook.post` | 사내 Webhook POST | productivity | http | 팀장 구성 |
+| `schedule_query` | 예약 등록 미리보기 | productivity | builtin | 내부 전용(마켓 미노출, `show_in_marketplace=false`) |
+| `gmail.send` | Gmail 메일 발송 | communication | oauth | 요청 시 |
+| `gmail.search` | Gmail 메일 검색 | communication | oauth | |
+| `kakao.send_memo` | 카카오톡 '나에게 보내기' | communication | oauth | |
+| `google_calendar.create_event` | 구글 캘린더 일정 추가 | productivity | oauth | |
+| `slack.post` | Slack 메시지 보내기 | communication | oauth | |
+| `webhook.post` | Webhook POST | productivity | http | 팀장 구성 |
+| `echo.sample` | Echo (외재화 sample) | productivity | http | |
+
+> `code_interpreter` 빌트인은 ADR-0005(2026-05-22)로 폐기되어 `claude_code` 로 대체되었습니다. 시드 슬러그의 단일 출처는 `backend/config/tools.yaml` 입니다.
 
 외부 연동이 필요한 도구는 `requires_credentials=true`로 표시되며, 사용자는 `/tools` 페이지에서 OAuth 또는 API Key를 등록해야 실행 시 동작합니다.
 
@@ -80,7 +85,12 @@ tool_registry.dispatch("gmail.send", args, ctx)
 | `POST` | `/tools/credentials` | 자격증명 저장 (`tool_slug`, `data`) |
 | `DELETE` | `/tools/credentials/{tool_id}` | 자격증명 삭제 |
 | `POST` | `/tools/test` | 개별 도구를 1회 호출해 연결 상태 확인 (dry-run) |
-| `POST` | `/admin/tools` | (super_admin 전용) 새 도구 카탈로그 추가 |
+| `POST` | `/tools/custom` | 사용자 커스텀 HTTP 도구 등록(인증된 누구나). endpoint 는 등록·디스패치 양 시점 모두 SSRF 가드(`check_url_safe`) 통과 필요 |
+| `PATCH` | `/tools/{tool_id}` | 본인/관리자 도구 수정. endpoint 변경 시 SSRF 재검증 |
+| `DELETE` | `/tools/{tool_id}` | 도구 삭제 |
+| `POST` | `/tools/{tool_id}/upvote` · `favorite` · `fork` | 좋아요 · 보관 · 포크(복제) |
+
+> 시스템 카탈로그(시드) 추가는 `backend/config/tools.yaml` 시드(부팅 시 빌트인 카탈로그 upsert)로만 수행합니다. `POST /admin/tools` 같은 라우트는 없습니다.
 
 ### 챗봇 바인딩은 `/chatbots/{id}/tools` PUT으로:
 ```json
@@ -104,6 +114,7 @@ tool_registry.dispatch("gmail.send", args, ctx)
 
 ## 7. 보안
 
+- **SSRF 가드 (커스텀 HTTP 도구)**: 사용자 등록(`source=user`) 도구의 endpoint 와 webhook URL 은 등록·수정(`POST /tools/custom`, `PATCH /tools/{id}`)과 실제 디스패치 시점(`tool_registry._dispatch_http`/`_dispatch_oauth`) 모두 `app/core/net_guard.check_url_safe` 를 통과해야 합니다. 호스트가 해석되는 **모든 IP** 를 검사해 사설/루프백/링크로컬/예약/멀티캐스트(메타데이터 `169.254.169.254` 포함)를 차단하고(DNS 리바인딩 우회 방어), `http/https` 외 스킴은 거부합니다. 비신뢰 endpoint 에는 사내 tool-server 공유 비밀(`TOOL_SERVER_TOKEN`)을 전송하지 않습니다(시스템 시드 도구에만 동봉).
 - `tool_credentials.data`는 민감 정보이므로 다음 중 하나를 적용:
  - **Pgcrypto** `pgp_sym_encrypt`/`decrypt` (서버 시크릿으로)
  - 응용 레벨에서 `cryptography.fernet`로 암호화 후 JSON에 저장
