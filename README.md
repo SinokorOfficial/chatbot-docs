@@ -2,7 +2,8 @@
 
 장금상선 그룹 챗봇의 **공개 기술 문서 사이트**. mkdocs Material 로 빌드되어 GitHub Pages 에 발행됩니다.
 
-🔗 <https://ysh21368ai.github.io/chatbot-docs/>
+👉 사용자 매뉴얼(운영): https://sinokorofficial.github.io/chatbot-docs/ 
+👉 개발자 문서(전 기능): https://sinokorofficial.github.io/chatbot-docs/dev/
 
 ## 구조
 
