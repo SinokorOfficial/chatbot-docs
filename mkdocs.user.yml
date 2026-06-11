@@ -1,0 +1,47 @@
+# 사용자 매뉴얼(운영) 전용 사이트 — Pages 루트(/)에 배포 (ADR-0009 매뉴얼 분리).
+# 개발자 문서 전체는 mkdocs.yml 이 /dev/ 하위로 따로 빌드된다.
+#
+# docs_dir 는 빌드 시 생성되는 docs-user/ — 워크플로가 user_manual.md 를
+# index.md 로 복사해 넣는다(운영 사용자에게 개발 문서가 보이지 않게 물리 분리).
+#   mkdir -p docs-user && cp docs/user_manual.md docs-user/index.md
+
+site_name: 장금상선 그룹 챗봇 · 사용자 매뉴얼
+site_description: 장금상선 그룹 챗봇(운영) 사용 안내 — 채팅 · 자료 업로드 · 챗봇 만들기 · 문서 검색
+site_url: https://sinokorofficial.github.io/chatbot-docs/
+
+docs_dir: docs-user
+
+nav:
+  - 사용자 매뉴얼: index.md
+  - 개발자 문서 ↗: https://sinokorofficial.github.io/chatbot-docs/dev/
+
+theme:
+  name: material
+  language: ko
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: 다크 모드로
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: 라이트 모드로
+  features:
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true

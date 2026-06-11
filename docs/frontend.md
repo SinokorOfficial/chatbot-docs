@@ -91,8 +91,25 @@ const handleLogout = () => {
 
 - `ApiUserError`로 모든 API 오류를 통일. 401/403은 AppShell이 `/login`으로 리다이렉트, 그 외는 페이지 상단 에러 배너로 표시.
 - 자격증명 만료 같은 도구 실패는 채팅 메시지 안에 에러 블록으로 표시(에이전트 출력 경로).
+- **채팅 스트림 실패** — user 말풍선은 지우지 않고 그대로 유지하며 말풍선 아래 "⚠ 전송 실패" 상태를 표시(`Msg.failed`, 클라이언트 전용). `FailureBanner` 재시도가 같은 내용으로 들어오면 새 말풍선을 추가하지 않고 실패 표시만 해제한다(중복 방지). 배너를 닫아도 내가 보낸 내용이 대화에 남는다.
+- **첨부 경고는 비차단** — 폴더 첨부 상한(300개) 초과 등은 native `alert()` 대신 컴포저 위 인라인 경고 바(8초 자동 소거 + 수동 닫기). 이미지 교체 확인은 `confirmDialog` 사용(native `confirm()` 금지).
 
-## 11. 의존성
+## 11. 피드백 · 로딩 프리미티브 (`shared/ui/`)
+
+모두 "모듈 싱글톤 + 전역 호스트" 패턴 — 호스트는 AppShell 에 1회 마운트, 호출은 어디서든.
+
+| 프리미티브 | 용도 | 호출 |
+| --- | --- | --- |
+| `toast()` | 일상 액션 피드백("저장했어요"/"삭제했어요"/조용한 실패). 우하단 비차단 스택, 자동 소거(성공 3.5s·에러 6s) | `toast("저장했어요")`, `toast(msg, "error")` |
+| `celebrate()` | 첫 챗봇 생성 같은 *달성* 순간. 컨페티 + 격려. 드물게 | `celebrate("만들었어요! 🎉")` |
+| `successFollowup()` | 성공 직후 *다음 행동* 제안(액션 링크 포함) | `successFollowup({title, actions})` |
+| `confirmDialog()` | 파괴적/되돌리기 어려운 액션 확인. native `confirm()` 금지 | `await confirmDialog({title, danger:true})` |
+| `Alert` | 페이지 상단 인라인 오류/안내(머무르는 상태) | `<Alert variant="error">…</Alert>` |
+| `Skeleton` / `SkeletonList` | 로딩 — "불러오는 중…" 텍스트 대신 콘텐츠 형태 예고 | `<SkeletonList rows={4} />` |
+
+**중복 금지 규칙**: 같은 순간에 toast+celebrate, toast+successFollowup, toast+인라인 Alert(같은 에러) 를 동시에 쓰지 않는다. 인라인 `Alert`/`setErr` 로 이미 표시되는 에러에 toast 를 또 띄우지 않는다. `<option>` 내부 로딩 텍스트는 스켈레톤 불가 — 텍스트 유지.
+
+## 12. 의존성
 
 - `next@15`, `react@19`, `tailwindcss@3.4`, `react-markdown`, `rehype-highlight`, `remark-gfm`.
 - 새 페이지는 `use client` 지시어 필요(모두 인터랙티브).

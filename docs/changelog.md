@@ -2,6 +2,177 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-06-11 — CI/CD 배포 파이프라인 + 무중단 헬스 프로브 + K8s 이전 경로 + docs URL 정리
+
+### 추가 (Added)
+- **GitHub Actions 배포 워크플로(`deploy.yml`)** — main 푸시 시 ACR 클라우드 빌드(backend + frontend `--build-arg NEXT_PUBLIC_FEATURE_SET=rag`) → Container Apps 롤링 업데이트 → `/healthz` 스모크. OIDC 페더레이션(저장 비밀 0), `production` 환경(승인 게이트 가능). [.github/workflows/deploy.yml]
+- **무중단 헬스 프로브(bicep)** — 백엔드 Startup/Liveness(`/healthz`, DB 미접촉)·Readiness(`/readyz`, DB SELECT 1), 프론트 3종(`/login`). Single 리비전 모드는 새 리비전이 Readiness 통과 후에만 트래픽 전환 → 끊김 없는 배포. 프로브 부재로 process-up 만 보고 조기 전환되던 것을 해소. [infra/main.bicep]
+- **프론트→백엔드 연결 env** — `NEXT_PUBLIC_API_URL_REWRITE_BACKEND` 를 백엔드 FQDN 으로 주입(next.config rewrites 는 서버 시작 시 평가라 런타임 env 가능). 없으면 프록시가 localhost 로 가던 갭. [infra/main.bicep]
+- **OIDC 설정 + AKS 이전 경로 문서** — Azure AD 앱·페더레이션·RBAC·gh 변수 등록 절차, "Container Apps→AKS는 매니페스트 작성+update 2줄 교체+DNS 전환, 앱/이미지/DB/프로브 무변경" 명시(프로브가 K8s probe 와 1:1). [infra/README.md]
+
+### 수정 (Fixed)
+- **공개 docs URL 정리** — 옛 개인계정 `ysh21368ai.github.io`(org 이전으로 404)를 `sinokorofficial.github.io/chatbot-docs`(운영 매뉴얼)·`/dev/`(개발자 문서)로 교체. README 의 `bl-check-ai-docs` 복붙 오류도 수정. (사이트는 org URL 에 정상 동작 중이었음) [README.md, 메모리]
+
+### 검증 (Tests)
+- `az bicep build` exit 0 (프로브/env 추가 후).
+
+## 2026-06-11 — 공개 docs 사이트 운영/개발 물리 분리 (ADR-0009 매뉴얼 분리 완결)
+
+- **Pages 루트(/) = 사용자 매뉴얼**(`mkdocs.user.yml` 신설 — user_manual.md 단일 페이지, 개발 문서가 docs_dir 에 아예 없음), **`/dev/` = 개발자 문서 전체**(기존 mkdocs.yml, site_url 을 /dev/ 로). 운영 사용자에게 개발 전용 기능 문서가 노출되지 않는다.
+- chatbot-docs(공개 리포) 워크플로가 두 구성을 빌드해 한 Pages 아티팩트로 합침. 코드 리포 빌드 게이트(docs.yml)도 두 구성 모두 strict 검증. sync 스크립트가 mkdocs.user.yml 동기화.
+- 검증: 두 구성 로컬 `mkdocs build --strict` exit 0.
+
+## 2026-06-11 — 로그인/가입 플립 렌더 에러 수정 + Pretendard 한글 폰트 번들링
+
+### 수정 (Fixed)
+- **"Cannot update Router while rendering AuthExperience" 에러** — 로그인↔가입 플립 토글이 `setMode` *업데이터 함수 안*에서 `history.replaceState` 를 호출했다. React 는 업데이터를 렌더 중에 실행하고 Next 15 는 history API 를 Router 상태 업데이트로 패치하므로 렌더 중 setState 위반. URL 동기화를 `useEffect([mode])` 로 이동(커밋 후 실행, StrictMode 2회 실행에도 안전). [frontend/features/auth/AuthExperience.tsx]
+
+### 추가 (Added)
+- **Pretendard Variable 한글 폰트 번들** — 기존 폰트(Geist·Plus Jakarta 등 Google 폰트)는 전부 라틴 전용이라 한글이 OS 기본 폰트(맑은 고딕 등)로 떨어져 환경마다 렌더링이 달랐다. `next/font/local` 로 PretendardVariable.woff2(자체 호스팅, 외부 요청 없음)를 로드하고 폰트 체인에서 라틴 폰트 *뒤*에 배치 — 라틴/숫자는 기존 폰트, 한글 글리프만 Pretendard. 어제의 keep-all/text-wrap 정리와 함께 한글 타이포 일관성 완성. [frontend/app/layout.tsx, frontend/app/fonts/, frontend/app/globals.css]
+
+### 검증 (Tests)
+- `tsc --noEmit` exit 0 · `next build` 성공(폰트 셀프호스팅 검증) · `vitest` 52 passed.
+
+## 2026-06-10 — 튜토리얼/온보딩 오버레이 전면 제거 + 전 페이지 레이아웃·타이포 표준화
+
+사용자 결정: 인터랙티브 튜토리얼류를 걷어내고 UI 를 깔끔하게 — 안내는 /guide 매뉴얼로 일원화.
+
+### 제거 (Removed)
+- **온보딩/튜토리얼 오버레이 6종** — ① Walkthrough(최초 로그인 스텝 투어, AppShell)·NavMenu "둘러보기 다시 보기" 항목, ② MissionHub(처음 5분 퀘스트 보드, 채팅 빈 화면), ③ EntryMissionBar(documents·chatbots·workflows 빈 상태 — chatbots 는 EmptyState 로 대체), ④ PostAnswerMissionBand(첫 답변 후 챗봇화 권유 배너), ⑤ ClaudeCodeTutorial(3단계 오버레이 — /powerup 슬래시와 배너 ? 버튼은 /guide 로 연결), ⑥ 클로드 코드 빈 상태 코치마크. 컴포넌트 파일은 보존(마운트만 제거), 퀘스트 진행 트래킹(markQuestExplored)은 무해해서 유지.
+
+### 변경 (Changed)
+- **페이지 컨테이너 표준화** — 페이지마다 `max-w-4xl~7xl`·`py-8/10`·`sm:px-10` 유무가 뒤섞여 화면 간 본문 폭이 점프하던 것을 2단계로 고정: `.page-shell`(72rem — 목록/관리) / `.page-shell--narrow`(56rem — 읽기/폼/상세). 워크스페이스 13개 페이지 일괄 전환 + AppShell 헤더도 같은 폭으로 가장자리 정렬. [frontend/app/globals.css, app/(workspace)/*]
+- **한국어 타이포 기본기** — body 에 `word-break: keep-all`(글자 단위 꺾임 방지) + `overflow-wrap: break-word`(긴 토큰 보호), 제목(h1-h3·type-display/section/card-title)에 `text-wrap: balance`, 문단에 `text-wrap: pretty`. [frontend/app/globals.css]
+- guide 의 채팅 항목에서 제거된 '처음 5분 퀘스트' 설명 삭제(매뉴얼-실기능 일치 유지).
+
+### 검증 (Tests)
+- `tsc --noEmit` full/rag 두 모드 exit 0 · `vitest` 52 passed · ESLint 신규 위반 0.
+
+## 2026-06-10 — 운영/개발 티어 기능 플래그 구현 (ADR-0009 체크리스트 ①②③)
+
+운영(Azure)=RAG 챗봇 전용 분리의 실체 — 백엔드 `FEATURE_*` + 프론트 `NEXT_PUBLIC_FEATURE_SET`.
+
+### 추가 (Added)
+- **백엔드 기능 플래그** — `FEATURE_CLAUDE_CODE/CUSTOM_TOOLS/WORKFLOWS/SKILLS/SCHEDULES` (미설정 시 환경 기본: dev=on, `APP_ENV=prod`=off, 명시값 우선). OFF 도메인은 `main.py` 가 **라우터 등록 자체를 생략**(404=차단, 권한 구멍 원천 제거 — tools·schedules·skills·workflows·claude_code·workspace). claude_code 직행 분기(stream/regenerate)는 403, `_ALWAYS_ON_TOOLS` 의 claude_code/schedule_query 도 플래그로 제외. 회귀 테스트 4건. [backend/app/core/config.py, backend/app/main.py, backend/app/features/chat/router.py, backend/tests/test_feature_flags.py]
+- **프론트 피처셋** — `shared/lib/features.ts` (`NEXT_PUBLIC_FEATURE_SET=rag|full`, 빌드 타임). rag 빌드는 NavMenu(빈 그룹 제거+준비 중 더미 숨김)·⌘K 팔레트·가이드 매뉴얼 항목·온보딩 퀘스트(개발 전용 7종)를 필터하고, 채팅의 클로드 코드 진입점 3곳(슬래시 명령·`?cc=1` 딥링크·작업 복귀 CTA)을 제거. [frontend/shared/lib/features.ts, NavMenu.tsx, CommandPalette.tsx, guide/page.tsx, quests.ts, chat/page.tsx]
+- `.env.example` 에 두 플래그 군 문서화. ADR-0009 체크리스트 ①②③ 완료 표기(운영 Dockerfile 은 claude CLI·docker 의존이 원래 없음을 확인).
+
+### 검증 (Tests)
+- `pytest` **185 passed**(+4) · `tsc --noEmit` full/rag 두 모드 모두 exit 0 · `vitest` 52 passed · ESLint 신규 위반 0.
+- 잔여 체크리스트: user_manual 운영판 재작성·chatbot-docs nav 2분할(문서 작업), Azure Tag inheritance·예산(포털 작업).
+
+## 2026-06-10 — 전수 감사 잔여 결함 일괄 수리 (backend-chat·front-infra·worker·config-deploy) + ADR-0009 운영/개발 분리
+
+6개 차원 전수 감사(발견 27건 건별 적대 검증)의 잔여 확정 결함을 수리. 부팅 가드·헬스 프로브·Space 하이재킹·401 세션 복구는 직전 커밋(e9bd8dd), 나머지는 본 배치.
+
+### 추가 (Added)
+- **ADR-0009: 운영/개발 티어 분리** — 운영(Azure `ai-part-rg`)=RAG 챗봇 전용(보장 4기능), 개발=풀 기능 트렁크(Claude Code 등). 브랜치=main/develop+기능 플래그(포크 금지), 운영 DB 신규 시작(대화이력 미이관), 매뉴얼 2분할, 태그 비용 분리 절차(태그 비소급·Tag inheritance 필요 — 공식 문서 검증). [docs/adr/0009-prod-dev-tier-split.md, CONTRIBUTING.md, mkdocs.yml]
+
+### 보안 (Security)
+- **workflows team_admin 전역 IDOR (상)** — `_can_view/_can_edit` 가 team_admin 을 팀 무관 관리자로 인정해 타 팀 private 워크플로 조회/수정/삭제/실행 가능 → skills/faqs 와 동일한 팀 스코프(`_admin_scope_ok`) 적용. 권한 게이트 단위 테스트 7건 신규. [backend/app/features/workflows/router.py, backend/tests/test_authz_scoping.py]
+- **schedules 챗봇 접근권 미검증 (중)** — 예약 생성이 chatbot 존재만 확인해 타 팀 private 챗봇의 system_prompt/model 이 스케줄 실행에 유입되는 IDOR → `chatbot_service.get_for_use` 가시성 가드 적용. [backend/app/features/schedules/router.py]
+- **BYOK 키 argv 노출 (중)** — docker 모드가 `-e ANTHROPIC_API_KEY={키}` 로 ps/cmdline 에 평문 노출 → 값 없는 `-e NAME` 패스스루 + env 주입. [backend/app/services/claude_runner.py]
+- **업로드 무상한 RAM 적재 OOM/DoS (중)** — 쿼터 검사 전 전 파일 통째 적재 → 요청 상한(30개/파일 50MB/합계 150MB) + chunk 읽기 조기 413. [backend/app/features/documents/router.py]
+
+### 수정 (Fixed)
+- **claude_code docker 컨테이너 좀비 (상)** — 타임아웃/취소/disconnect 시 `proc.kill` 이 docker CLI 만 죽이고 컨테이너는 BYOK 과금을 지속 → `docker kill claude-{run_id}` 포함 단일 출구 정리를 `finally` 로 통합(직행 경로 break 의 GeneratorExit 포함). 정상 종료는 reap 플래그로 스킵. host fallback 메트릭 폴러(~10분 잔존) cancel 누락도 함께. [backend/app/services/claude_runner.py]
+- **/chat/regenerate 답변 영구 소실 (중)** — 직전 답변을 선삭제+commit 후 재생성해 실패 시 복구 불능 → 새 답변 저장 확정 후 삭제로 순서 교체(클로드 직행 분기는 공유 제너레이터에 훅이 없어 기존 선삭제 유지 — 알려진 한계). [backend/app/features/chat/router.py]
+- **동일 AsyncSession asyncio.gather 동시 사용 (중)** — 메모리/스킬/복구팁이 RAG 와 같은 세션을 동시 사용, InterfaceError 가 삼켜져 컨텍스트가 조용히 누락 → `_safe_*` 3종이 전용 세션을 열도록 변경(chatbot_rag 워크어라운드와 동일). [backend/app/features/chat/router.py]
+- **대화 간 콘텐츠 누출 (중)** — 백그라운드 스트림(BUG-A 설계)의 부분 텍스트/완료 답변이 전환한 다른 대화 화면에 스트리밍·append → `streamConvIdRef === activeId` 가드('생각 중' 인디케이터 선례)를 말풍선 렌더·append·실패 마킹에 적용. 다른 대화면 사이드바 갱신만(서버엔 이미 저장). [frontend/app/(workspace)/chat/page.tsx]
+- **Stop 부분 응답 유실 (하)** — 중지 시 보존 로직이 stale closure(`streaming` state)라 항상 빈 값 → `streamingRef` 미러로 교체(onSend/onRegenerate). [frontend/app/(workspace)/chat/page.tsx]
+- **워크스페이스 파일 트리 역전 (중)** — syncFiles 가 stale 응답 검증 없이 REPLACE_FILES → 최신 요청 wsId 만 dispatch 자격(latestSyncWsRef). [frontend/features/workspace/WorkspaceProvider.tsx]
+- **401 세션 복구 절반 수리 보완 (리뷰 mustFix)** — raw fetch 3곳(메시지 로드·SSE 스트림·PDF 렌더)이 `auth:unauthorized` 미발행 → apiFetch 와 동일 이벤트 발행. [frontend/app/(workspace)/chat/page.tsx, frontend/features/documents/DocumentViewer.tsx]
+- **worker 신뢰성 4종 (중)** — ① 핸들러 예외 후 rollback 없는 세션 재사용(PendingRollbackError → 잡 running 고착+워커 사망) ② 메인 루프 예외 가드 전무(DB 순단 1회에 프로세스 즉사) ③ stuck running reaper 부재(30분 임계 재큐, 시작 시+10분 주기) ④ 재시도 백오프 전무(2^attempts, 최대 30s). parse_document 는 `process_document_job(reraise=True)` 로 큐 재시도 작동(인라인 경로 불변), embed_chunks force 백필은 id 커서 배치 루프로 진행 보장. [worker/ingest/runner.py, worker/ingest/handlers/, backend/app/services/ingest.py]
+- **dev 스크립트 (중)** — run.sh 포트 8000→8001(프로젝트 표준, `PORT` 오버라이드), dev-tmux pkill 광역 패턴(무관 프로젝트 uvicorn 오살)→프로젝트 경로+포트 리스너 스코프, deployment.md 의 미구현 `--profile full`/구 워크플로 명칭 정정. [backend/run.sh, scripts/dev-tmux.sh, docs/deployment.md]
+
+### 검증 (Tests)
+- 백엔드 `pytest` **181 passed**(+7 권한 스코프 단위) · 프론트 `tsc --noEmit` exit 0 · `vitest` 52 passed · 셸 스크립트 `bash -n` 통과.
+- 의도적 미수리: 공개 가입 `create_team_name` 경로의 즉시 team_admin 부여(제품 결정 필요 — 의도된 온보딩일 수 있음), 클로드 직행 regenerate 의 선삭제(공유 제너레이터 훅 부재), 미검증 하 수준 참고 건들(error.tsx 구 토큰, ⌘⇧Q 표기, returnTo, 팔레트 포커스 트랩 등).
+
+## 2026-06-10 — 보안·정합성 수리 — 커스텀 도구 SSRF 차단 · 문서 목록 팀내 격리 · 스킬 권한 게이트
+
+전수 감사(6개 차원 중 2개 완료 — front-screens·backend-domains, 발견 건별 적대 검증) 에서 확정된 결함 수리. tools/skills/documents 도메인이 다른 라우터 대비 권한·검증 패치가 덜 적용된 상태였다.
+
+### 보안 (Security)
+- **커스텀 도구 SSRF + `TOOL_SERVER_TOKEN` 유출 차단 (상)** — 사용자 등록(source=user) 도구의 endpoint 가 webhook 모드와 달리 `check_url_safe` 를 거치지 않았고, `_invoke_external_tool_server` 가 공유 비밀 `TOOL_SERVER_TOKEN` 을 사용자 지정 URL 로 무조건 전송했다(내부망 SSRF + 토큰 탈취, `/tools/test` 로 인증 사용자가 즉시 트리거 가능). 수리: ① 디스패치 시점(`_dispatch_http`/`_dispatch_oauth`) 에 source=user 면 SSRF 가드 통과 + 공유 토큰/자격증명 미전송(`send_token=False`), ② 등록/수정 시점 조기 차단(사용자 피드백용 — DNS 가 나중에 내부 IP 로 바뀌는 TOCTOU 는 디스패치 검사가 막는다). **동작 변경**: 내부망 주소를 endpoint 로 쓰던 커스텀 도구는 이제 차단된다(시스템 시드 도구는 영향 없음). 회귀 테스트 2건 추가. [backend/app/services/tool_registry.py, backend/app/features/tools/router.py, backend/tests/test_tools_custom.py]
+- **문서 목록/폴더 팀내 격리 (중)** — `GET /documents`·`/documents/folders` 가 `team_id` 만으로 필터해 타 팀원의 scope=personal 문서 메타데이터(파일명·폴더·**내용 자동요약 description**·올린이)가 전 팀원에게 노출됐다. status/rendered/download 와 동일한 가시성 규칙(팀 공용/본인 개인/본인 공유)을 SQL 조건(`_visible_clause`)으로 목록·폴더 쿼리에 적용. [backend/app/features/documents/router.py]
+- **스킬 PATCH 권한 게이트 (중)** — ① PATCH 가 visibility 역할 게이트(생성과 달리) 없이 setattr 해 일반 member 가 자기 스킬을 org/public 으로 승격 가능, ② `is_admin` 이 team_admin 을 전역 관리자로 인정해 타 팀 스킬 수정/삭제 가능(faqs 의 `_assert_faq_editable` 이 이미 고친 IDOR 와 동형). 수리: `_can_manage_skill`(본인/super_admin/자기 팀 스킬의 team_admin) + PATCH visibility 변경 시 생성과 동일 게이트 + team_id 일관성. [backend/app/features/skills/router.py]
+
+### 수정 (Fixed)
+- **fire-and-forget 태스크 GC 소실 방지 (하)** — `asyncio.create_task` 참조 미보관 3곳(문서 인제스트 `process_document_job`, 채팅 메모리 갱신 `_update_memory_bg`, 끊김 시 자동 제목 `_auto_title`)을 강참조 set + done callback 패턴으로 교체 — GC 시 잡이 도중 취소되어 문서가 processing 으로 영구 잔류하던 잠재 결함. [backend/app/features/documents/router.py, backend/app/features/chat/router.py]
+- **가이드 'FAQ 게시판 바로 가보기' 깨진 링크 (하)** — `<id>` 단순 치환으로 `/chatbots//faqs` href 가 생성되어 308 정규화 후 id="faqs" 인 엉뚱한 챗봇 상세(에러 화면)에 도달(검증 에이전트가 dev 서버 curl 로 실증). `/<id>` 이하를 잘라 해당 목록 화면으로 보내는 `guideHref` 로 교체. [frontend/app/(workspace)/guide/page.tsx]
+
+### 검증 (Tests)
+- 백엔드 `pytest` **164 passed**(기존 162 + SSRF 회귀 2 신규) · 프론트 `tsc --noEmit` exit 0 · ESLint 신규 위반 0.
+- 감사 잔여: backend-chat·front-infra·worker·config-deploy 4개 차원은 세션 한도로 미실행 — 추후 재개 필요. 미검증 참고 건(스케줄 생성의 챗봇 접근권 미검사 의혹, tools upvote IntegrityError 무효, 프론트 하 7건: ⌘⇧Q 허위 표기·딥링크 returnTo 유실·CommandPalette 포커스 트랩 부재·error.tsx 구 토큰 등)은 확정 전이라 미수리.
+
+## 2026-06-10 — 전 화면 액션 피드백·로딩 정비 — toast()/Skeleton 프리미티브 신설 + 19개 화면 일괄 적용
+
+채팅 외 화면의 두 가지 구조적 공백을 메웠다: ① 저장/삭제/게시가 성공해도 무반응(일반 성공 피드백 시스템 자체가 없었음), ② 목록 로딩이 "불러오는 중…" 텍스트 한 줄(레이아웃 점프 + 형태 예고 없음). 11개 화면 영역에 병렬 적용 후 3-렌즈(회귀·중복피드백·idiom) 적대 리뷰로 검증 — mustFix 0건, 참고 5건 전부 반영.
+
+### 추가 (Added)
+- **`toast()` (`shared/ui/Toast.tsx` 신설)** — 일상 액션 피드백용 우하단 비차단 토스트 스택(최대 3개). success 3.5s · info 4s · error 6s 자동 소거 + 수동 닫기, `role="status"`/`aria-live="polite"`, prefers-reduced-motion 존중. Celebrate/ConfirmDialog 와 동일한 "모듈 싱글톤 + 전역 호스트" 패턴, `ToastHost` 는 AppShell 에 1회 마운트. 역할 분담: celebrate=달성 순간(드물게) · successFollowup=다음 액션 제안 · **toast=그 외 모든 일상 피드백**. [frontend/shared/ui/Toast.tsx, frontend/shared/layout/AppShell.tsx]
+- **`Skeleton`/`SkeletonList` (`shared/ui/Skeleton.tsx` 신설)** — "불러오는 중…" 텍스트 대체. 목록형은 `role="status"` + sr-only 라벨 내장(접근성 정보 손실 없음), 아래 행일수록 옅어지는 펄스. [frontend/shared/ui/Skeleton.tsx]
+- **피드백 프리미티브 사용 정책 문서화** — 6종(toast/celebrate/successFollowup/confirmDialog/Alert/Skeleton) 역할 분담표 + 중복 금지 규칙(같은 순간 toast+celebrate 금지, 인라인 Alert 로 표시되는 에러에 toast 중복 금지 등). [docs/frontend.md §11]
+
+### 변경 (Changed) — 화면별 적용 (총 40건)
+- **성공 피드백 추가** — admin(할당량 저장·멤버 삭제), tools(자격증명 연결·삭제, 도구 복사·등록), notices(게시·고정/해제·보관), documents(삭제·설명 저장·폴더 이동), chatbots(삭제), chatbots/faqs(Q&A·댓글·답글 게시 — 단 첫 Q&A 는 기존 celebrate 유지), workflows(저장), skills(공유), mypage(API 키 등록/해제), workspaces(보관). *celebrate/successFollowup 이 이미 뜨는 순간(챗봇 생성·문서 업로드·첫 Q&A)과 인라인 Alert 로 표시되는 에러 경로는 중복 방지를 위해 의도적으로 제외(오탐 19건 보고).*
+- **로딩 스켈레톤 교체** — tools·chatbots(목록/상세/FAQ)·workflows(목록/상세)·skills(목록/상세)·workspaces·UsageDashboard·DocumentPickerModal(첫 페이지만, 무한스크롤 추가 로드는 텍스트 유지)·ApiKeysSection(단일 키라 rows=1). documents 는 첫 로딩 중 EmptyState("아직 올린 파일이 없어요")가 번쩍이던 문제를 `loaded` 플래그 + 스켈레톤으로 해소. `<option>` 내부 로딩 텍스트는 스켈레톤 불가라 유지.
+- **에러 복구 보강** — documents 목록 조회 실패를 전용 `loadErr` Alert(현재 폴더·검색어 유지 "다시 시도" 버튼)로 분리. skills upvote 실패 시 LikeButton 내장 롤백 + error toast 연결. WorkspacePanel 의 새 탭 차단/실행 실패 native `alert()` 2곳 → `toast(…, "error")`. mypage 사용량 기간 전환 중 수치가 "-" 로 깜빡이던 것을 Skeleton 으로 표시.
+- **이중 에러 표시 제거** — tools 자격증명 모달: 저장 실패 시 같은 메시지가 폼 하단 + 모달 하단에 동시 표시되던 기존 결함 — 입력에 가까운 폼 한 곳만 남김(적대 리뷰가 발견).
+
+### 검증 (Tests)
+- `tsc --noEmit` exit 0 · `vitest run` **52 passed** · ESLint **신규 위반 0**(기존 미사용 변수 1·exhaustive-deps 2·no-img 경고는 변경 전부터 존재함을 stash 대조로 확인).
+- 적대 리뷰 3-렌즈 결과: toast 호출 14개 지점 전수 추적 — toast+celebrate/successFollowup/인라인 Alert 중복 0건. 리뷰 참고 5건(스코프드 keyframes 가 인라인 animation 과 매칭 안 되던 cosmetic 버그, z-index 토큰(`--z-toast`) 미사용, 첨부 알림 `--warning-border` 페어 위반, ApiKeys 스켈레톤 분량, 모달 이중 에러) 전부 반영.
+
+## 2026-06-10 — 채팅 UX 정비 — 실패 말풍선 보존 · native 다이얼로그 제거 · 입력 흐름 일관화
+
+채팅 화면 UX 감사(프론트 전수) 후 확정 결함 4건 수리. 스트림 실패 시 user 말풍선이 사라지던 문제(배너를 닫으면 입력 내용이 어디에도 안 남음)와 채팅 화면에 남아 있던 마지막 native `alert()`/`confirm()` 3곳을 정리했다.
+
+### 변경 (Changed)
+- **스트림 실패 시 user 말풍선 보존** — 기존엔 실패하면 마지막 user 메시지를 대화에서 제거하고 `FailureBanner` 안에만 보존("보존된 내 메시지"). 이제 말풍선은 그대로 두고 아래에 "⚠ 전송 실패 — 답변을 받지 못했어요" 상태를 표시(`Msg.failed`, 클라이언트 전용 플래그). 재시도(onSend)가 직전 실패 말풍선과 같은 내용이면 새 말풍선을 추가하지 않고 실패 표시만 해제 — 기존 제거 방식이 막던 중복 말풍선을 동일하게 차단하면서 "내 작업이 사라졌다"는 불안 요소 제거. [frontend/app/(workspace)/chat/page.tsx, frontend/features/chat/ChatMessage.tsx]
+- **첨부 native 다이얼로그 제거** — 이미지 교체 확인 `confirm()` → `confirmDialog`(교체/유지 + 기존 파일명 노출). 폴더 첨부 상한(300개) 초과 `alert()` 2곳 → 컴포저 위 인라인 경고 바(`role="status"`, 8초 자동 소거 + 수동 닫기) — 첨부 도중 흐름을 끊지 않는다. [frontend/app/(workspace)/chat/page.tsx]
+- **입력 prefill 일관화** — 일반 모드 빠른 시작 칩이 `setInput` 만 호출해 포커스/커서/높이 갱신이 빠졌던 것을 `fillInputAndFocus` 로 통일(클로드 코드 예시 칩의 중복 인라인 구현도 같은 헬퍼로 정리). 전송 후 `resetInputBox` 가 입력창 포커스를 유지해 버튼 클릭 전송 후에도 바로 이어서 입력 가능. [frontend/app/(workspace)/chat/page.tsx]
+
+### 검증 (Tests)
+- `tsc --noEmit` exit 0 · `vitest run` **52 passed**(a11y 8건 포함). ESLint 신규 위반 0 (기존 `citationsFabHidden` 미사용 경고는 본 변경 이전부터 존재).
+- UX 감사에서 오탐 3건 확인 후 제외: 전송 중복(이미 `busy` 가드), 일반 모드 빈 상태(이미 인사말+MissionHub+빠른 시작 칩 존재), 슬래시 prefill 높이(`fillInputAndFocus` 가 이미 처리).
+
+## 2026-06-10 — 보안 정리 · 저장소 구조 정리 · Azure 전환 ADR
+
+### 보안 (Security)
+- 문서 내 잔존 시크릿/사내망 IP 마스킹: 과거 changelog 에 남아 있던 초기 관리자 비밀번호 문자열과 `10.188.*` 사내 IP 를 `***REDACTED***` / `10.x.x.x` 로 교체. 사내 접속 주소는 `operations.md`(공개 제외)로 이동.
+- `scripts/sync-docs-to-public.sh` 에 **시크릿/내부정보 게이트** 추가 — API 키 패턴·사내 IP 가 감지되면 공개 push 를 차단(파일:라인만 출력, 값은 비출력).
+
+### 변경 (Changed)
+- 저장소 기준을 org 로 통일: 코드 `SinokorOfficial/chatbot` · 문서 `SinokorOfficial/chatbot-docs` (`mkdocs.yml` `site_url`/`repo_url`, sync 스크립트, `CONTRIBUTING.md`).
+- `.github/workflows/docs.yml` 을 **strict 빌드 게이트 전용**으로 축소 — Pages 배포는 chatbot-docs 리포가 담당.
+- `docs/README.md` 의 구식 "노션 업로드" 안내 제거 → GitHub Pages 배포 경로 설명으로 교체.
+
+### 추가 (Added)
+- `CONTRIBUTING.md` 에 **브랜치 전략(운영/개발 분리)** 과 **시크릿·보안 규칙** 섹션.
+- **ADR-0008: Azure 전환** (`docs/adr/0008-azure-migration.md`) — Azure OpenAI(LiteLLM `azure/` provider) · Blob 스토리지 드라이버 · pgvector 유지(AI Search 보류) 결정과 모듈별 체크리스트.
+
+## 2026-06-10 — Claude Code — 첨부 디렉토리 구조 보존 + CLI 2.1.170 전수 슬래시 카탈로그 + 3단계 모드 튜토리얼
+
+첨부 파일 평탄화 제거(폴더 구조 보존 + traversal 게이트) + 슬래시 카탈로그 2.1.170 전수 재추출(34→87개, 오기 5건 교정) + 클로드 코드 모드 3단계 워크스루 튜토리얼. 폴더를 첨부하면 `src/app/page.tsx` 가 `page.tsx` 로 떨어지던 구조 파괴를 단일 게이트로 해소하고, 모드의 작동 방식이 전달되지 않던 첫 진입 경험을 단계형 튜토리얼로 보강했다.
+
+### Added / Changed (첨부 디렉토리 구조 보존)
+- **`safe_relative_path` 단일 게이트(`backend/app/core/pathsafe.py` 신설)** — 첨부 경로를 *구조 보존* 상대 경로로 정규화. 절대경로(POSIX/윈도우 드라이브/UNC)·`..`·`.`·빈 세그먼트·제어문자·`:` 포함 세그먼트는 경로 전체 거부(부분 수선 금지), 깊이 16단계·512자 상한. 반환은 POSIX 상대 경로이며, 호출자는 조립 후 `resolve()` + `commonpath` 로 작업 디렉토리 격리를 최종 검증한다(symlink 우회 방어).
+- **평탄화 3곳 제거** — ① `claude_runner.run_claude_code_stream` 의 `workspace_files` 기록, ② 라우터 `_stream_claude_code_direct` 의 첨부 사전 write, ③ `_persist_attachments_to_workspace` 의 `_attachments/` 영속까지 전부 `Path(fname).name` 평탄화를 걷어내고 게이트 통과 경로는 구조 그대로(`dest.parent.mkdir(parents=True)`), 위험 경로는 **basename 폴백** + 격리 위반 시 차단 로깅 후 skip. [backend/app/services/claude_runner.py, backend/app/features/chat/router.py]
+- **`FileAttachment.relpath` 필드 추가** — 폴더 첨부의 상대 경로를 페이로드로 전달(`{filename, b64, relpath?}`). 워크스페이스 키도 `relpath or filename` 우선. [backend/app/features/chat/router.py]
+- **프론트 폴더 첨부** — 📎 폴더 첨부 버튼(`input[webkitdirectory]`, `File.webkitRelativePath` 보존) + 드롭 폴더 재귀 탐색(`node_modules`/`.git`/`.next`/`dist`/`build`/`__pycache__`/`.venv` 제외, 한 번에 300개 상한·초과 안내), 첨부 프리뷰에 상대 경로 표시. [frontend/app/(workspace)/chat/page.tsx]
+
+### Added / Changed (슬래시 카탈로그 · 튜토리얼)
+- **슬래시 카탈로그 34→87개 전수 재추출** — claude CLI **2.1.170** 바이너리의 명령 정의(local-jsx name 필드) 직접 스캔을 `~/.claude/i18n/trans.py` 한글 설명 88종과 교차 대조. 분류 실측: web-action 8 · cc-passthrough 33 · cli-only 46. 기존 카탈로그 이름 오기 5건 교정(`init-verifier`→`init-verifiers`, `cost`→`usage`(별칭 cost/stats), `primer`→`powerup`, `privacy`→`privacy-settings`, `heap`→`heapdump`). [frontend/features/chat/claudeCodeCommands.ts]
+- **클로드 코드 모드 3단계 튜토리얼(`ClaudeCodeTutorial.tsx` 신설)** — ① 직행 모드(모든 입력 Claude Code 직행 + BYOK) → ② 오른쪽 작업공간 패널(파일 트리·▶ 실행·👁 미리보기, 단계 동안 패널 accent 하이라이트) → ③ 명령·옵션·첨부. 모드가 켜지는 *모든 경로*에서 미완료 사용자에게 자동 1회(유저별 `localStorage`), 재호출은 배너 `?` 버튼·`/powerup`(웹 매핑: 튜토리얼). [frontend/features/chat/ClaudeCodeTutorial.tsx, frontend/app/(workspace)/chat/page.tsx]
+- **온보딩 퀘스트 `tried_claude_code`** — 클로드 코드 모드에서 첫 메시지 전송 시 "코드 작업 맡겨보기" 완료. [frontend/features/onboarding/quests.ts, frontend/shared/lib/track.ts]
+
+### Tests / Docs
+- **백엔드 회귀 테스트**(`backend/tests/test_attachment_structure.py`, +19) — safe_relative_path 정상/거부 매트릭스(절대경로·traversal·제어문자·깊이/길이 상한)와 3개 write 경로의 구조 보존·basename 폴백·격리 차단을 잠근다. 백엔드 전체 162 passed.
+- 검증: `frontend` `tsc --noEmit` exit 0 + `vitest run` **52 passed**(a11y 8건 포함).
+- **문서 동기화** — `claude-code-cli.md`(2.1.170·87개 실측 반영, 동기화표 오기 5건·`/desktop` 분류 교정, 첨부 구조 보존 게이트 추가), `claude-code-mode.md`(3단계 튜토리얼·폴더 첨부 신규 + 기존 추측성 서술 교정: BYOK 암호화 AES-GCM→**Fernet**(ADR-0005 실측), 코드에 없던 키보드 단축키 표 제거→실제 단축키만, 돌아가기 CTA 노출 조건을 실제 신호(conv-scoped sessionStorage)로, 작업공간 저장 위치를 `data/workspaces/{id}/files/` 실측으로), `api.md`(`/chat/stream` 페이로드에 `files[].relpath`·`claude_code_mode`·`reasoning_effort` 반영).
+
 ## 2026-06-09 — Claude Code — 웹 모드 `/` 메뉴를 실제 CLI 슬래시 카탈로그와 동기화
 
 클로드코드 모드 `/` 메뉴를 실제 Claude Code 슬래시 카탈로그(바이너리 84개 + 스킬)와 동기화 — web-action 매핑/cc-passthrough(스킬 headless 실행)/cli-only 안내로 분류, 데이터 기반(`claudeCodeCommands.ts`, `trans.py` 대조 유지). 과거 손으로 적어 넣어 *실제 CLI 와 어긋나던* 슬래시 목록을, 실측 카탈로그를 단일 출처로 삼아 세 분류로 정리했다. 모든 변경은 a11y 회귀(axe) 통과.

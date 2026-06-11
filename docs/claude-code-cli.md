@@ -1,6 +1,6 @@
 # Claude Code CLI 옵션 매핑 · MCP/스킬 연동
 
-클로드 코드 모드(`/chat` direct routing)는 사용자의 요청을 **실제 `claude` CLI** 로 그대로 흘려보냅니다. 이 문서는 2026-06-09 기준 **claude CLI 2.1.169 를 실측**해 정리한 *실제 옵션 ↔ 앱 인자/페이로드* 매핑과, 앱의 MCP 서버·Skill 을 세션 스코프로 결선하는 구조를 정리합니다.
+클로드 코드 모드(`/chat` direct routing)는 사용자의 요청을 **실제 `claude` CLI** 로 그대로 흘려보냅니다. 이 문서는 2026-06-10 기준 **claude CLI 2.1.170 을 실측**해 정리한 *실제 옵션 ↔ 앱 인자/페이로드* 매핑과, 앱의 MCP 서버·Skill 을 세션 스코프로 결선하는 구조를 정리합니다.
 
 > 배경: 과거 일부 옵션은 *유추* 로 추가돼 있었습니다(예: `--max-turns`). 실 CLI 에 존재하지 않아 무시되거나 오류였고, 이번에 실측값으로 교정했습니다.
 
@@ -120,12 +120,15 @@
 - **plugin-dir traversal 검증**: `--plugin-dir` 경로는 `add_dir` 와 동일한 traversal 방어를 재사용하되, 공유 마켓플레이스 경로를 위해 cwd 를 추가 허용 루트로 둡니다.
 - **정리 보장**: `cleanup_scope_dir` 는 조용히 실패하지 않습니다. rmtree 후 *실제 제거 여부를 검증*하고 1회 재시도, 그래도 남으면 ERROR 로 로깅(자격증명 누출 위험 알림).
 - **전역 등록은 admin 전용**: `admin_mcp_register/remove` 는 list-argv subprocess(shell=False)로만 호출해 injection 을 차단합니다. *권한 검사는 라우터 책임*.
+- **첨부 파일 디렉토리 구조 보존 + traversal 게이트** (2026-06-10): 워크스페이스로 들어가는 첨부 파일(`workspace_files` / 라우터 직행 pre-write / `_attachments/` 영속 3곳 모두)은 `app/core/pathsafe.safe_relative_path` 로 상대 경로 구조를 보존합니다(`src/app/page.tsx` 가 `page.tsx` 로 평탄화되던 회귀 금지). 절대경로·`..`·`.`·제어문자·`:`(드라이브) 세그먼트, 깊이 16 단계·512자 초과 경로는 거부되어 **basename 폴백**으로 격하되고, 조립된 최종 경로는 `resolve()` + `commonpath` 로 workdir 격리를 한 번 더 검증합니다(symlink 우회 방어). 회귀 잠금: `backend/tests/test_attachment_structure.py`.
 
 ---
 
 ## 슬래시 명령(`/`) 동기화표 — 웹 모드 `/` 메뉴 ↔ 실제 CLI 카탈로그
 
-클로드 코드 모드의 채팅 입력창에서 `/` 를 누르면 뜨는 빠른 명령 메뉴는 **실제 `claude` CLI 슬래시 카탈로그**(바이너리 명령 84개 + 스킬)와 동기화됩니다. 동기화의 단일 출처(SSOT)는 데이터 전용 파일 **`frontend/features/chat/claudeCodeCommands.ts`** 이며, 그 카탈로그의 출처는 **`~/.claude/i18n/trans.py`**(claude 바이너리 명령 설명)입니다. **유추 금지** — 명령/설명 갱신 시 `trans.py` 와 대조하고, 카탈로그가 단일 출처가 되도록 UI 는 카탈로그를 import 만 합니다(`ccPassthroughCommands()` / `cliOnlyCommands()` / `webActionCommands()`).
+클로드 코드 모드의 채팅 입력창에서 `/` 를 누르면 뜨는 빠른 명령 메뉴는 **실제 `claude` CLI 슬래시 카탈로그**(2026-06-10 전수 재추출 — 총 **87개**: web-action 8 · cc-passthrough 33 · cli-only 46)와 동기화됩니다. 동기화의 단일 출처(SSOT)는 데이터 전용 파일 **`frontend/features/chat/claudeCodeCommands.ts`** 이며, 카탈로그는 **claude CLI 2.1.170 바이너리의 명령 정의(local-jsx name 필드) 직접 스캔**을 **`~/.claude/i18n/trans.py`**(한글 설명 88종)와 교차 대조해 만들었습니다. **유추 금지** — 명령/설명 갱신 시 바이너리 스캔 결과·`trans.py` 와 대조하고, 카탈로그가 단일 출처가 되도록 UI 는 카탈로그를 import 만 합니다(`ccPassthroughCommands()` / `cliOnlyCommands()` / `webActionCommands()`).
+
+> 2026-06-10 전수 재추출에서 기존 카탈로그(34개)의 이름 오기 5건을 교정했습니다: `init-verifier`→`init-verifiers`, `cost`→`usage`(별칭 `cost`/`stats`), `primer`→`powerup`, `privacy`→`privacy-settings`, `heap`→`heapdump`.
 
 각 명령은 세 분류 중 하나로 매핑됩니다.
 
@@ -135,44 +138,55 @@
 
 > 표는 `claudeCodeCommands.ts`(출처: `trans.py`)에서 생성합니다. "웹 동작" 열은 web-action 인 명령에 한해 매핑되는 웹 UI 액션이며, 나머지는 분류 동작을 따릅니다.
 
-| 명령 | 분류 | 웹 동작 (web-action 매핑) | 설명 |
-| --- | --- | --- | --- |
-| `/clear` | web-action | 새 채팅 | 빈 컨텍스트로 새 세션 시작; 이전 세션은 디스크에 남음(/resume 재개) |
-| `/compact` | web-action | 요약 | 지금까지 대화를 요약해 컨텍스트 확보 |
-| `/cost` | web-action | 사용량 | 세션 비용·사용량·통계 표시 |
-| `/effort` | web-action | 추론 강도 | 모델 effort 수준 설정 (`low~max`) |
-| `/help` | web-action | 가이드 | 도움말·명령어 표시 |
-| `/mcp` | web-action | 도구·MCP 관리 | MCP 서버 관리 (`/tools` 라우팅) |
-| `/model` | web-action | 모델 선택 | Claude Code의 AI 모델 설정 |
-| `/copy` | cc-passthrough | — | Claude의 마지막 응답을 클립보드에 복사 (/copy N=N번째) |
-| `/debug` | cc-passthrough | — | 이 세션 디버그 로깅을 켜고 문제 진단 지원 |
-| `/desktop` | cc-passthrough | — | 세션을 Claude Desktop에서 계속 |
-| `/diff` | cc-passthrough | — | 커밋 안 된 변경과 턴별 diff 보기 |
-| `/export` | cc-passthrough | — | 현재 대화를 파일/클립보드로 내보내기 |
-| `/feedback` | cc-passthrough | — | 피드백 제출·버그 신고·대화 공유 |
-| `/focus` | cc-passthrough | — | 포커스 뷰 토글 (프롬프트·도구 요약·최종 응답만 표시) |
-| `/fork` | cc-passthrough | — | 대화를 잇는 백그라운드 에이전트 생성 |
-| `/goal` | cc-passthrough | — | 목표 설정 — 조건 충족까지 계속 작업 |
-| `/hooks` | cc-passthrough | — | 도구 이벤트용 훅 구성 보기 |
-| `/init-verifier` | cc-passthrough | — | 코드 변경 자동 검증용 verifier 스킬 생성 |
-| `/insights` | cc-passthrough | — | Claude Code 세션 분석 리포트 생성 |
-| `/loops` | cc-passthrough | — | 반복 루프·stop-hook 조회·생성·삭제 |
-| `/memory` | cc-passthrough | — | Claude 메모리 편집 |
-| `/permissions` | cc-passthrough | — | 도구 권한 허용/거부 규칙 관리 |
-| `/plan` | cc-passthrough | — | 플랜 모드 켜기/현재 세션 플랜 보기 |
-| `/plugins` | cc-passthrough | — | Claude 플러그인 관리 |
-| `/primer` | cc-passthrough | — | 빠른 레슨으로 Claude Code 기능 익히기 |
-| `/privacy` | cc-passthrough | — | 개인정보 설정 보기 및 변경 |
-| `/recap` | cc-passthrough | — | 지금 한 줄 세션 요약 생성 |
-| `/doctor` | cli-only | — | Claude Code 설치·설정을 진단하고 점검 (TUI 대화형) |
-| `/exit` | cli-only | — | CLI 종료 |
-| `/heap` | cli-only | — | JS 힙을 ~/Desktop에 덤프 (개발자 도구) |
-| `/ide` | cli-only | — | IDE 통합 관리 및 상태 표시 (Cursor/VSCode) |
-| `/install` | cli-only | — | Claude Code 빌드 설치 |
-| `/keybindings` | cli-only | — | 키 바인딩 설정 파일 열기/생성 |
-| `/mobile` | cli-only | — | Claude 모바일 앱 다운로드 QR 표시 |
+**web-action 전체(8개)** — 웹 UI 액션으로 매핑:
 
-> 위 표는 카탈로그의 *대표 매핑 항목*입니다. 바이너리 전체 명령(84개)과 스킬은 `trans.py` 와 `claudeCodeCommands.ts` 에서 추적하며, cc-passthrough 분류 명령과 스킬은 헤드리스 실행으로 그대로 흘려보냅니다. 회귀 잠금: `frontend/features/chat/__tests__/SlashCommandMenu.test.tsx`.
+| 명령 | 웹 동작 | 설명 |
+| --- | --- | --- |
+| `/clear` | 새 채팅 | 빈 컨텍스트로 새 세션 시작; 이전 세션은 디스크에 남음(/resume 재개) |
+| `/compact` | 요약 | 지금까지 대화를 요약해 컨텍스트 확보 |
+| `/effort` | 추론 강도 | 모델 effort 수준 설정 (`low~max`) |
+| `/help` | 가이드 | 도움말·명령어 표시 |
+| `/mcp` | 도구·MCP 관리 | MCP 서버 관리 (`/tools` 라우팅) |
+| `/model` | 모델 선택 | Claude Code의 AI 모델 설정 |
+| `/usage` | 사용량 | 세션 비용·사용량·통계 표시 (별칭 `cost`/`stats`) |
+| `/powerup` | 튜토리얼 | 클로드 코드 모드 3단계 튜토리얼 열기 (구 `primer`) |
+
+**cc-passthrough(33개) 대표 항목** — 선택 시 `/{name} ` prepend 후 헤드리스 실제 실행:
+
+| 명령 | 설명 |
+| --- | --- |
+| `/add-dir` | 작업 디렉터리 추가 |
+| `/agents` | 에이전트 구성 관리 |
+| `/copy` | Claude의 마지막 응답을 클립보드에 복사 (/copy N=N번째) |
+| `/diff` | 커밋 안 된 변경과 턴별 diff 보기 |
+| `/export` | 현재 대화를 파일/클립보드로 내보내기 |
+| `/fork` | 대화를 잇는 백그라운드 에이전트 생성 |
+| `/goal` | 목표 설정 — 조건 충족까지 계속 작업 |
+| `/init-verifiers` | 코드 변경 자동 검증용 verifier 스킬 생성 |
+| `/insights` | Claude Code 세션 분석 리포트 생성 |
+| `/loop` `/loops` | 반복 루프 실행·조회·생성·삭제 |
+| `/memory` | Claude 메모리 편집 |
+| `/permissions` | 도구 권한 허용/거부 규칙 관리 (별칭 `allowed-tools`) |
+| `/plan` | 플랜 모드 켜기/현재 세션 플랜 보기 |
+| `/privacy-settings` | 개인정보 설정 보기 및 변경 |
+| `/recap` | 지금 한 줄 세션 요약 생성 |
+| `/review` `/security-review` | PR 리뷰 / 미반영 변경분 보안 검토 |
+| `/status` | 버전·모델·계정·API 연결·도구 상태 표시 |
+
+**cli-only(46개) 대표 항목** — 터미널 TUI 전용, 메뉴 하단 비활성 안내:
+
+| 명령 | 설명 |
+| --- | --- |
+| `/desktop` | 세션을 Claude Desktop에서 계속 (별칭 `app`) |
+| `/doctor` | Claude Code 설치·설정을 진단하고 점검 |
+| `/exit` | CLI 종료 |
+| `/heapdump` | JS 힙을 ~/Desktop에 덤프 |
+| `/ide` | IDE 통합 관리 및 상태 표시 |
+| `/keybindings` | 키 바인딩 설정 파일 열기/생성 |
+| `/teleport` | claude.ai에서 Claude Code 세션 재개 (별칭 `tp`) |
+| `/theme` | 테마 변경 |
+
+> 위 표 중 cc-passthrough/cli-only 는 카탈로그의 *대표 항목*입니다. 전체 87개(web-action 8 · cc-passthrough 33 · cli-only 46)와 스킬은 `claudeCodeCommands.ts` 에서 추적하며, cc-passthrough 분류 명령과 스킬은 헤드리스 실행으로 그대로 흘려보냅니다. 회귀 잠금: `frontend/features/chat/__tests__/SlashCommandMenu.test.tsx`.
 
 ---
 

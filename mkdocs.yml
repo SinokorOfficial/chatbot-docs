@@ -1,9 +1,10 @@
 site_name: 장금상선 그룹 챗봇 · 기술 가이드
 site_description: 사내 그룹 챗봇 의 사용·기술 문서 (공개판)
-site_url: https://ysh21368ai.github.io/chatbot-docs/
+# 개발자 문서는 /dev/ 하위 — 루트(/)는 사용자 매뉴얼(mkdocs.user.yml) (ADR-0009)
+site_url: https://sinokorofficial.github.io/chatbot-docs/dev/
 
 repo_name: chatbot-docs
-repo_url: https://github.com/ysh21368ai/chatbot-docs
+repo_url: https://github.com/SinokorOfficial/chatbot-docs
 
 docs_dir: docs
 
@@ -11,8 +12,12 @@ docs_dir: docs
 
 nav:
   - 홈: index.md
-  - 사용 매뉴얼: user_manual.md
 
+  # ── 사용자 매뉴얼(운영) — RAG 챗봇 4기능 기준. 개발 전용 기능 문서는
+  #    아래 "개발자 문서" 트리에만 둔다 (ADR-0009 매뉴얼 분리).
+  - 사용자 매뉴얼 (운영): user_manual.md
+
+  # ── 이하 개발자 문서 (전 기능) ──
   - 시스템:
       - 아키텍처 개요: architecture.md
       - 아키텍처 결정 기록 (ADR): architecture-decisions.md
@@ -73,6 +78,8 @@ nav:
           - 디자인 시스템 (Stitch): code-walkthrough/frontend-design.md
 
   - ADR (아키텍처 결정 기록):
+      - ADR-0009 · 운영/개발 티어 분리 (운영=RAG 전용): adr/0009-prod-dev-tier-split.md
+      - ADR-0008 · Azure 전환 (LLM·임베딩·스토리지·벡터): adr/0008-azure-migration.md
       - ADR-0007 · Claude Code 모드 분리·작업공간 영속: adr/0007-claude-code-mode-separation-and-workspace-persistence.md
       - ADR-0006 · Progressive AI Workspace: adr/0006-progressive-ai-workspace.md
       - ADR-0005 · Claude Code as Coding Agent: adr/0005-claude-code-as-coding-agent.md

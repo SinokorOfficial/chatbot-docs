@@ -83,8 +83,10 @@
 
 | 메서드 | 경로 | 설명 |
 | ------ | ---- | ---- |
-| POST | `/chat/stream` | SSE. Body: `{conversation_id?, chatbot_id?, model, message, use_rag, image_base64?, files?}` |
+| POST | `/chat/stream` | SSE. Body: `{conversation_id?, chatbot_id?, model, message, use_rag, image_base64?, files?, claude_code_mode?, reasoning_effort?, claude_code_options?}` |
 | POST | `/chat/regenerate` | 마지막 응답 재생성 |
+
+`files[]` 항목은 `{filename, b64, relpath?}` 입니다. `relpath` 는 **폴더 첨부** 시 상대 경로(예: `src/app/page.tsx`)로, 클로드 코드 모드 워크스페이스에 디렉토리 구조를 그대로 재현하는 데 쓰입니다. 구조 보존은 백엔드 `app/core/pathsafe.safe_relative_path` 게이트를 통과한 경로에만 적용되며, traversal 위험 경로는 basename 으로 격하됩니다. `claude_code_mode=true` 면 LLM/RAG/메모리 매칭을 모두 건너뛰고 `run_claude_code_stream` 으로 직행하고, `reasoning_effort` 는 실제 CLI `--effort`(`low|medium|high|xhigh|max`)로 전달됩니다.
 
 ### SSE 이벤트 스키마
 
