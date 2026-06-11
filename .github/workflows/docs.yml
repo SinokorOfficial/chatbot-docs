@@ -1,12 +1,15 @@
 name: docs
 
-# docs/ 또는 mkdocs.yml 변경 시 GitHub Pages 자동 빌드/배포
+# docs/ 또는 mkdocs 설정 변경 시 GitHub Pages 자동 빌드/배포.
+# 운영/개발 분리(ADR-0009): 루트(/)=사용자 매뉴얼(mkdocs.user.yml),
+# /dev/=개발자 문서 전체(mkdocs.yml) — 두 사이트를 한 Pages 아티팩트로 합쳐 올린다.
 on:
   push:
     branches: [main]
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
+      - 'mkdocs.user.yml'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -35,8 +38,12 @@ jobs:
       - name: Install mkdocs-material
         run: pip install -r requirements.txt
 
-      - name: Build site
-        run: mkdocs build --strict
+      - name: Build site (루트=사용자 매뉴얼, /dev/=개발자 문서)
+        run: |
+          mkdir -p docs-user
+          cp docs/user_manual.md docs-user/index.md
+          mkdocs build --strict -f mkdocs.user.yml -d site
+          mkdocs build --strict -f mkdocs.yml -d site/dev
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
