@@ -1,16 +1,16 @@
-# 테마 시스템 — 16 브랜드 + 라디얼 피커
+# 테마 시스템 — 15 브랜드 + 라디얼 피커
 
 ## 1. 큰 그림
 
 ```
-backend/config/themes.yaml      ← 16 브랜드 시드 (BMW, Apple, OpenAI, Notion, …)
+backend/config/themes.yaml      ← 15 브랜드 시드 (BMW, Apple, OpenAI, …)
    ↓ services/seed_loader.run_all_seeds()
 Theme 테이블                    ← name · slug · tokens(JSONB) · category
    ↓ GET /themes
 프론트
   BrandThemeProvider            ← 마운트 시 localStorage → :root data-theme
   applyTokensInline(tokens)     ← CSS 변수 직접 주입 (호버 미리보기)
-  RadialThemePicker             ← 16개를 원 위에 배치, 휠 스크롤 + 라이브 프리뷰
+  RadialThemePicker             ← 15개를 원 위에 배치, 휠 스크롤 + 라이브 프리뷰
   BrandThemeGallery             ← 헤더의 단일 트리거 (라디얼 진입)
   defaultTokens.ts              ← 누락 토큰의 표준 기본값
 ```
@@ -47,7 +47,7 @@ themes.map((t, i) => {
 })
 ```
 
-원 위에 16개 점을 배치. 현재 focus 된 점은 중앙에 더 크게 표시 + 이름.
+원 위에 15개 점을 배치. 현재 focus 된 점은 중앙에 더 크게 표시 + 이름.
 
 ### 휠 스크롤로 회전
 
@@ -102,7 +102,7 @@ function ringColorFor(token: string): string {
 }
 ```
 
-라이트 테마 (Apple, Notion light, BMW Whisper)에선 검은 ring, 다크 테마에선 흰 ring.
+라이트 테마 (Apple, BMW Whisper)에선 검은 ring, 다크 테마에선 흰 ring.
 
 ## 5. defaultTokens 의 역할
 

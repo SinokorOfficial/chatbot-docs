@@ -68,7 +68,7 @@ tokens:
 | Apple | 부드러운 곡선 | `radius: {sm:8, md:12, lg:18}` |
 | Apple | iCloud 보라 보조 | `accent_secondary: #bf5af2` |
 
-## 시드된 테마 (현재 16개)
+## 시드된 테마 (현재 15개)
 
 | slug | 브랜드 | 카테고리 | 특징 |
 |---|---|---|---|
@@ -79,7 +79,6 @@ tokens:
 | `github` | GitHub | developer-tools | 다크 우선, Primer, 모노스페이스 강조 |
 | `stripe` | Stripe | fintech | 네이비 + 보라, 그라데이션 |
 | `linear` | Linear | productivity-saas | — |
-| `notion` | Notion | productivity-saas | — |
 | `vercel` | Vercel | developer-tools | — |
 | `openai` | OpenAI | ai-platform | — |
 | `claude` | Anthropic | ai-platform | — |
