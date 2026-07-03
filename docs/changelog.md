@@ -2,6 +2,15 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-03 (2차) — 대화 감사 super_admin 전용 + 팀 미소속 관리자 제품 사용 + 운영 UI 기준 매뉴얼 이미지
+
+### 변경 (Changed)
+- **대화 감사 = super_admin 전용(전체 인원)** — 대화는 개인정보 민감도가 높아 팀장/감사자도 *자기 팀 대화조차* 열람 불가로 축소. `/team/audit/*` 3종을 `require_super_admin` 으로 교체하고 전체 인원 스코프(+summary 에 team_name 표시), 프론트는 AppShell/AdminSideNav 게이트 축소 + /team 페이지에 권한 안내 카드. `team_auditor` 는 고유 권한 없는 레거시 역할로 문서화. [team/router.py, AppShell.tsx, AdminSideNav.tsx, team/page.tsx, rbac.md, admin.md]
+- **팀 미소속 super_admin 도 제품 기능 사용 가능** — super_admin 은 조직도 어디에도 속하지 않는 전역 계정 정책 확정. `require_team` 이 super_admin 에 한해 None(전역 버킷)을 반환하고, documents·chatbots·chatbot_faqs·faq_posts 의 `team_id` 를 NULL 허용으로 완화(부팅 마이그레이션). 챗봇 목록/문서 가시성은 전역 버킷(IS NULL) + 본인 소유로 스코프되어 팀 콘텐츠와 완전 격리. 업로드 저장 경로는 `_org/`. 일반 사용자는 종전대로 400. [core/deps.py, db/models.py, services/schema_upgrade.py, services/chatbot_service.py, documents/router.py, faqs/router.py, schemas.py]
+- **매뉴얼 스크린샷을 운영(rag) UI 기준으로 교체** — 기존 이미지는 dev 전체 기능 빌드라 운영 화면(개발 중/고급 메뉴 없음)과 달랐다. `NEXT_PUBLIC_FEATURE_SET=rag` 프론트를 별도 기동해 운영에 존재하는 16장(root·login·register·manual·chat·chatbots 3종·documents·qa·notices·faq·mypage·team·admin·admin-metrics)을 운영 UI 로 재캡처, 개발 전용 7장(tools·skills 2종·workflows 2종·schedules·studio)은 dev UI 유지. 6/11 부터 :3002 에 떠 있던 옛 프로덕션 빌드 서버(스테일)가 캡처를 오염시키던 것도 발견·제거. [manual-shots/*, docs/screenshots/*]
+
+검증: 백엔드 pytest 241 전건(신규: 감사 정책 2 + 팀리스 관리자 2) · tsc 0 · vitest 52 · 팀리스 관리자 실계정 스모크(챗봇 생성/목록·문서 업로드/목록·FAQ·채팅 스트림·대화 team_id NULL).
+
 ## 2026-07-03 — 관리자 비밀번호 초기화 + 채팅 "생각 중"→답변 전환 버벅임 수정
 
 ### 추가 (Added)
