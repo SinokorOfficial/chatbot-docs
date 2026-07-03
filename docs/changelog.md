@@ -2,6 +2,11 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-03 (4차) — 모델 카탈로그 전수 추론 검증 · 2종 교정
+
+### 수정 (Fixed)
+- **카탈로그 전 모델 추론 검증(8/8)** — /chat/preview 로 전 모델 실호출 검증. ① `gemini/gemini-3.1-pro` 는 API 에 없는 ID(v1beta 404) → 정식명 `gemini-3.1-pro-preview` 로 교정(가격표는 preview 키 추가, 구 키는 과거 usage 산정용 유지·다운그레이드 맵 교체). ② `openai/gpt-5.5-pro` 는 Responses API 전용(chat/completions "not a chat model" 404)이라 현 litellm 경로로 추론 불가 → 카탈로그에서 제외(선택 즉시 실패하는 죽은 항목 제거, responses 브리지 지원 확인 후 재등록 검토). 교정 후 OpenAI 2·Anthropic 3·Gemini 3 전 모델 스트리밍 응답 확인. [config/models.yaml, services/metrics.py, services/efficiency.py]
+
 ## 2026-07-03 (3차) — 조직도 "팀은 자기 팀만"
 
 ### 변경 (Changed)
