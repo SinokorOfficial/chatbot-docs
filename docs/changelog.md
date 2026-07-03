@@ -2,12 +2,111 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-03 — 관리자 비밀번호 초기화 + 채팅 "생각 중"→답변 전환 버벅임 수정
+
+### 추가 (Added)
+- **관리자 비밀번호 초기화** — 비밀번호를 잊은 팀원을 팀장 이상이 초기화(`POST /admin/users/{id}/reset_password`). 임시 비밀번호(urlsafe 12자)를 발급하고 대상의 **활성 refresh 토큰을 전부 철회**(탈취 의심 시에도 기존 세션 즉시 종료). 임시 비밀번호는 응답에 **한 번만** 노출(서버는 bcrypt 해시만 저장, 재조회 불가·로그 미기록) — 관리 콘솔 팀원 관리에 '비번 초기화' 버튼 + 복사 가능한 1회성 모달. 권한은 활성/비활성 토글과 동일(`_assert_can_manage`: 팀장은 자기 팀만·super_admin 대상 불가·본인 400). [admin/router.py, schemas.py, admin/page.tsx, docs/admin.md]
+
+### 수정 (Fixed)
+- **채팅 "생각 중"→스트리밍 전환 버벅임** — 4중 원인 일괄 수정. ① 생각중 pill 과 스트리밍 말풍선이 *별개 DOM* 이라 첫 토큰 도착 시 pill 언마운트+말풍선 마운트로 레이아웃이 튀던 것 → 하나의 assistant 행으로 통합(빈 본문=점 애니메이션→텍스트, ChatMessage 내부에서 연속 전환). ② 토큰마다 `setStreaming` → 전체 리렌더 + 모든 히스토리 메시지 markdown 재파싱 → rAF 스로틀(프레임당 1회 flush) + `ChatMessage` 를 `React.memo` 화(함수 props 는 stale-클로저 안전 규칙으로 비교: onRegenerate 는 identity, onCiteClick 은 presence). ③ 토큰마다 `scrollIntoView(smooth)` 재시작으로 덜덜거리던 스크롤 → 스트리밍 중엔 instant, 완료 시에만 smooth. ④ 답변 완료 후 `refreshConversations` await 동안 busy=true·streaming="" 라 완성된 답변 아래 "생각 중"이 되살아나던 깜빡임 → `setBusy(false)` 를 답변 커밋과 같은 배치로 이동. [chat/page.tsx, ChatMessage.tsx]
+
+검증: 백엔드 pytest 17건(신규 비번초기화 3: 자격교체+세션철회·본인 400·팀장→super_admin 403 + 인증 회귀 14) · 프론트 tsc 0 · vitest 52 green.
+
+## 2026-07-02 — GPT-5.x temperature 400 수정 (제목 생성·유저 메모리 침묵 실패)
+
+### 수정 (Fixed)
+- **GPT-5.x/o-시리즈에 temperature 전달로 400** — 운영 대시보드 에러 2건(7/1 15시대)의 원인. GPT-5.x·o1/o3/o4 는 temperature 기본값(1)만 허용하는데 백그라운드 작업들이 0.0~0.4 를 넘겨 `BadRequestError` → 제목 자동 생성·유저 메모리 업데이트가 조용히 실패. litellm `drop_params` 는 *provider 가 모르는* 파라미터만 걸러 이 케이스를 못 잡는다. `completion_kwargs(model, temperature=…)` 로 중앙화해 지원 모델에만 포함(미지원 모델은 자동 생략) — 14개 호출부(title_gen·user_memory·faq_ai·faq_post_ai·rag_hyde/planner/advanced·reranker·workflow_nl/engine·ingest·ocr) 일괄 이전. [llm_runtime.py 외 12개 서비스]
+
+검증: 모델 판정 유닛 9/9 · app.main 임포트 · pytest 10건.
+
+## 2026-07-02 — 팀 삭제 + 팀원 이관/일괄삭제 (관리 콘솔)
+
+### 추가 (Added)
+- **조직도 + 팀 콘텐츠 이관** — 관리 콘솔에 **조직도** 섹션 — 루트(조직 전체)→연결선→팀 카드의 트리 레이아웃, 그라데이션 이니셜 아바타, 팀장 하이라이트, 콘텐츠 이모지 칩, 가로 스크롤(팀 다수), 소속 없음 그룹; `GET /admin/teams/overview` 팀별 9종 집계). 팀 삭제 모달이 팀원 외 **보유 콘텐츠**(챗봇·문서·대화·문의글·스킬·워크플로·예약·도구연결)도 보여주고 `POST /admin/teams/{id}/reassign_content` 로 대상 팀에 일괄 이관(비파괴)하거나, `POST /admin/teams/{id}/purge_content` 로 **완전 삭제**(문서는 스토리지 원본 파일까지, 자식 행은 CASCADE) — 팀을 비운 뒤 삭제. 조직도의 '소속 없음' 카드는 제거(최종관리자 무소속은 당연한 상태라 노이즈). 삭제 가드에 예약·도구연결 추가(NO ACTION FK 로 500 나던 구멍). [admin/router.py, schemas.py, admin/page.tsx]
+- **팀 삭제 + 팀원 처리 모달** — 관리 콘솔 팀 카드 '삭제'가 모달을 연다. 팀원이 있으면 **팀원 목록**을 보여주고 두 갈래로 비운다: ① **다른 팀으로 이관**(권장·비파괴, 팀 선택→`POST /admin/teams/{id}/reassign_members`, users.team_id 만 변경) ② **팀원 계정 일괄 삭제**(`POST /admin/teams/{id}/purge_members` — 계정별 소유 문서·챗봇은 최종관리자에게 이관, 개인 대화 삭제; 팀원 개별 삭제와 동일 정책). 두 API 모두 super_admin 은 대상에서 제외(skipped 보고). 빈-팀 판정에서도 super_admin 소속은 팀원으로 세지 않고, 팀 삭제 시 잔여 super_admin 의 team_id 를 자동 해제한다(전역 계정이 팀 삭제를 영구히 막는 문제 방지). 팀이 비면 **`DELETE /admin/teams/{id}`** 로 삭제 — 여전히 콘텐츠(챗봇·문서 등)가 남으면 409 로 사유 안내(CASCADE 로 소속 콘텐츠가 조용히 삭제되는 사고 방지). 중복/실수 생성 팀 정리용. [admin/router.py, schemas.py, admin/page.tsx]
+
+검증: pytest 6건(빈팀 204·팀원 409·없는팀 404·이관후삭제·일괄삭제후삭제·비관리자 403) + 인접 회귀 27건 · tsc 0 · Playwright 실화면 모달(팀원 목록+이관 셀렉터+일괄삭제) 확인.
+
+## 2026-07-02 — 챗 첨부 스캔본 PDF OCR 복구(정확도 우선) + 카드 UI 깨짐 수정
+
+### 변경 (Changed)
+- **온보딩 투어 전면 개편(전 페이지 + UX)** — ① 투어를 전 페이지로 확장(mypage·admin·metrics·notices·team·faq·guide·chatbots/[id] + 개발전용 5종, 동적 `[id]` 라우트 매칭 포함, 페이지별 상징 아이콘). ② *자동 노출 절제*: gate(/chat)만 첫 로그인 모달, 그 외 페이지는 우하단 힌트 칩(12초 자동 소멸·✕=다시 안 봄, z-modal 토큰·safe-area). ③ *키보드/접근성*: Esc(입력 중이면 seen 미기록)·←/→ 이동(게이팅 스텝 escape hatch, 카드에 명시)·Tab 포커스 트랩(카드 컨테이너 포함 순환)·IME isComposing 가드·포커스 저장/복원(isConnected)·aria-live 낭독. 투어 열림 중 ⌘K·'/'·Space 팔레트 트리거와 WorkspacePanel ←/→ 를 capture 단계에서 차단(딤 뒤 보이지 않는 팔레트가 포커스 훔치던 버그). ④ *진행 표시*: n/전체 카운터 + "모두 끄기"(유저별 전역 opt-out, '둘러보기 다시 보기'로 해제). ⑤ *비주얼*: accent→accent-2 그라데이션 CTA·카드 헤어라인·중앙 스텝 비네트 딤·아이콘 칩·muted 원값 대비(AA). 게이팅 쿨다운 중 잔여 클릭은 페이지 동작까지 차단(동작-진행 불일치 방지), 카드 위 배치는 bottom 앵커(타겟 가림 방지), 좁은 뷰포트 left 클램프. setIdx 업데이터 내 celebrate 호출(React setState-in-render 경고, 기존 잠복 버그) 제거. [pageTours.ts, Walkthrough.tsx]
+- **챗 첨부 PDF/문서 OCR 폴백 재활성화** — 2026-06-04 에 지연 회피로 `allow_ocr=False`(챗=네이티브 텍스트만) 였으나, 이후 `_ocr_pdf` 가 페이지 병렬 처리(세마포어 `ocr_concurrency`)+페이지 상한을 갖춰 지연이 완화됨. 정확도 우선 정책으로 `_process_attachments_for_chat` 이 이미지·PDF·문서 모두 `allow_ocr=True` 로 처리해 **스캔본 PDF 도 챗에서 바로 OCR** 된다. 네이티브 텍스트가 충분하면 OCR 을 건너뛰므로 텍스트 PDF 는 종전대로 네이티브 추출. SSE 블로킹을 막기 위해 챗 전용 상한 `ocr_chat_max_pages`(기본 20)를 신설해 `multimodal_ocr`/`_ocr_pdf` 에 `max_pages` 로 주입(/documents 인제스트는 종전 120p 유지). [config.py, features/chat/router.py, services/ingest.py, services/ocr.py]
+
+### 수정 (Fixed)
+- **Gemini 키 꼬리 공백/탭 → "API key not valid" 방어** — `.env`/Key Vault 시크릿에 섞인 트레일링 탭이 그대로 전달돼 OCR 이 조용히 실패(빈 결과)하던 문제. `configure_env` 가 API 키 주입 시 `.strip()` 적용. litellm 의 `gemini/` provider 는 `GEMINI_API_KEY` 를 읽으므로 그 전파도 함께 보장. 아울러 `multimodal_ocr` 진입 시 `configure_env()` 를 자체 호출해 다른 LLM 서비스보다 먼저 OCR 이 호출돼도 키가 세팅되도록 하드닝. [services/llm_runtime.py, services/ocr.py]
+- **모니터링(/admin/metrics) 통계 카드 글자단위 줄바꿈** — 6열 그리드+큰 카드 패딩으로 내부 폭이 좁아 전역 `overflow-wrap:break-word` 가 숫자/단위를 글자 단위로 부수던 깨짐(`195,256tok`→`195,\n256 t\nok`). compact 카드 + `whitespace-nowrap` + 6열은 `xl:` 에서만 적용으로 수정. [admin/metrics/page.tsx]
+- **챗봇 카드 공개범위 배지 대비** — private/shared 배지가 하드코딩 `text-slate-200` 이라 라이트 테마 흰 카드에서 글자가 안 보이던 문제. 테마 토큰(`--surface-muted`/`--muted`+border)으로 교체. [chatbots/page.tsx]
+
+검증: 백엔드 py_compile 0 · config 로드(ocr_chat_max_pages=20) · OCR end-to-end(스캔본 PDF → Gemini generateContent 200 → 텍스트 추출 확인) · 하드닝(GEMINI_API_KEY 미설정 상태에서도 OCR 성공) · 라이브 롤링 배포(chatbot-backend rev 0000030 트래픽 100%) · /healthz 200.
+
 ## 2026-06-12 — Notion 브랜드 테마·전 참조 제거
 
 ### 변경 (Changed)
 - **Notion 브랜드 테마·전 참조 제거** — 문서 배포는 GitHub Pages(SinokorOfficial/chatbot-docs) 단일 경로임을 명확화. `theme=notion` 사용자 기본 테마로 안전 이관. [themes.yaml, schema_upgrade.py, manual/page.tsx, CommandPalette.tsx, docs/themes.md, docs/design-system.md, docs/code-walkthrough/frontend-theme.md, docs/README.md]
 
 검증: tsc 0 · vitest 52 green · 백엔드 pytest green · 라이브 /health 200.
+
+## 2026-06-12 — 중복 문서 처리 (덮어쓰기 / 둘 다 보관 선택)
+
+### 추가 (Added)
+- **같은 내용 문서 중복 차단 + 사용자 선택** — Document.content_sha256 컬럼 추가, 업로드 시 내용 해시로 팀 내 중복 감지(배치 내 중복도). 중복이면 업로드 응답의 skipped 로 알려주고, 프론트가 다이얼로그로 **덮어쓰기 / 둘 다 보관(파일명 '(1)' 꼬리표) / 건너뛰기** 선택을 물어 해당 파일만 on_duplicate 정책으로 재업로드. 같은 파일 재업로드 시 생기던 문서·RAG 청크 중복 해소. [models.py, schema_upgrade.py, documents/router.py, documents/page.tsx]
+
+검증: dedup 4건(skip·배치·overwrite·keep_both) + 백엔드 전체 통과 · tsc full/rag 0 · dev content_sha256 컬럼 확인.
+
+## 2026-06-12 — 문서→챗봇→채팅 동선 연결 + 실패 문서 자동 정리
+
+### 변경 (Changed)
+- **실패 문서 자동 정리** — 텍스트 추출+OCR 모두 실패(0청크)해 status=failed 가 된 문서를 목록에 남기지 않는다. 폴링이 실패 문서를 감지하면 파일명+사유("스캔본이면 글자 인식 PDF로 다시") toast 1회 후 자동 삭제(재업로드해도 동일 실패라 dead weight). [documents/page.tsx]
+- **업로드 후 '챗봇 만들기' 유도** — 업로드 성공 배너의 주 CTA를 "이 문서로 챗봇 만들기 →"(/chatbots#new)로, "지금 채팅에서 써보기"는 보조로. (문서를 올리는 주 목적 = 그 문서로 챗봇 만들기) [documents/page.tsx]
+- **챗봇 생성 → 그 챗봇으로 채팅** — 생성 직후 "바로 테스트"가 /chat?chatbot=<id> 로 이동하고, /chat 이 ?chatbot= 을 읽어 그 챗봇을 선택 상태(모델·문서 토글)로 새 대화 시작. topbar 선택기와 동일 메커니즘. [chatbots/page.tsx, chat/page.tsx]
+
+검증: tsc full/rag 0 · dev 렌더 확인.
+
+## 2026-06-12 — 업로드 전송 진행 오버레이 + 이탈 경고
+
+### 추가 (Added)
+- **문서 업로드 중 전체화면 진행 오버레이** — 전송 동안 가운데 큰 스피너 + "전송이 끝날 때까지 페이지를 벗어나지 마세요(전송 후 분석은 자동 계속)" + 취소 버튼. 전송(브라우저→서버)은 페이지 fetch 에 묶여 이탈 시 중단되므로, 전송 동안만 `beforeunload` 경고로 실수 이탈 방지. (전송 후 파싱·임베딩은 서버 백그라운드라 이탈해도 계속) [documents/page.tsx]
+
+## 2026-06-12 — 챗봇 편집 문서 선택 검색화 + 운영에서 챗봇별 Q&A 숨김
+
+### 변경 (Changed)
+- **챗봇 편집의 '고를 문서'를 검색 모달로 교체** — 인라인 체크박스 나열(문서 많아지면 안 됨)을 만들기 화면과 동일한 DocumentPickerModal(파일명 검색·폴더·페이지네이션)로 통일. 선택 문서는 칩으로 표시·해제. [chatbots/[id]/page.tsx]
+- **운영(rag)에서 챗봇별 'Q&A' 게시판 숨김** — 챗봇별 질문과 답변 보드는 개발 전용으로 정리: 편집 헤더 링크·목록 카드 Q&A 버튼·생성 후 'Q&A 입력' CTA 모두 운영 미노출 + faqs 페이지 직접 URL 접근 시 notFound(). (서비스 전체 /faq 는 운영 유지) [chatbots/page.tsx, chatbots/[id]/page.tsx, chatbots/[id]/faqs/page.tsx]
+
+검증: tsc full/rag 0 · eslint 0 · dev 렌더 확인.
+
+## 2026-06-12 — 챗봇 만들기 미리보기 단계 '시험해보기' (저장 전 테스트 대화)
+
+### 추가 (Added)
+- **저장 전 챗봇 시험 대화** — 만들기 마법사 5단계(미리보기)에서 현재 초안 설정(모델·성격·문서 범위)대로 한 번 물어보고 답을 확인. 마음에 들 때 만들 수 있어 시행착오↓.
+- 백엔드 `POST /chat/preview`(휘발성·단발) — 대화/메시지/챗봇을 **DB 에 저장하지 않고** RAG+LLM 단일 턴 스트리밍. RAG 는 `search_for_draft` 로 *요청자 본인 신원* 기준 검색(권한 누수 차단, linked_only 는 본인 가시 문서 교차검증). chatbot_rag 의 스코프 검색 본문을 `_search_within_scope` 로 추출해 실제/초안 경로가 공유(실제 동작 무변경). 비용은 record_llm(phase=chatbot_preview) 귀속. [chat/router.py, chatbot_rag.py]
+- 프론트: 미리보기 카드 아래 미니 채팅(질문→스트리밍 답변, "저장되지 않아요" 안내). [chatbots/page.tsx]
+
+검증: chat_preview 2건(스트리밍·휘발성 무저장·system_prompt 반영 / 빈 메시지 422) + rag_filtering 17건(리팩토링 회귀) + 백엔드 전체 통과 · tsc full/rag 0.
+
+## 2026-06-12 — 챗봇 만들기 스텝 마법사 + 관리 콘솔 좌측 사이드바 (목업 기반)
+
+### 변경 (Changed)
+- **챗봇 만들기 = 좌측 스텝 레일 마법사** — 2열 폼을 5단계(기본 정보 → 응답 방식 → 지식 자료 → 공개 설정 → 미리보기)로 재구성. 좌측 레일에서 아무 단계나 클릭 점프(강제 선형 아님), 모바일은 상단 점/번호 인디케이터, 미리보기 단계에 라이브 미리보기 카드+만들기 버튼. 기존 동작 전부 보존(패널 토글·#new 해시·빈목록 CTA·생성 성공 처리·문서 고르기·isRagOnly). [chatbots/page.tsx]
+- **관리 콘솔 좌측 사이드바 통합** — 모니터링(/admin/metrics)·사용자·승인(/admin)·대화 감사(/team) 3개를 공용 AdminSideNav 로 묶고 각 페이지를 220px 사이드바+본문 2열로. 권한별 항목 노출(canManageTeam/canAudit), 활성 경로 최장일치. 목업의 챗봇/자료 관리·감사 로그·설정은 실제 기능이 없어 제외. [AdminSideNav.tsx, admin·metrics·team/page.tsx, globals.css]
+
+## 2026-06-12 — 문서 목록 파일 유형 색상 칩 (Figma 목업 기반 정돈)
+
+### 개선 (Changed)
+- **문서 목록에 파일 유형 색상 칩** — PDF(빨강)/DOC(파랑)/XLS(초록)/PPT(주황)/HWP/IMG/TXT 등 확장자별 정사각 배지를 파일명 앞에 추가, 파일명 굵게. "·"로 줄줄이 이어지던 메타 텍스트를 한눈에 스캔되게(목업 5번의 핵심 시각 단서). 로직 무변경(선택모드·설명편집·폴더이동·상태폴링 그대로). [documents/page.tsx]
+
+## 2026-06-12 — 문서 일괄 삭제 (선택 모드)
+
+### 추가 (Added)
+- **문서 선택 삭제** — 목록 헤더 "선택" 토글 → 행 체크박스(삭제 권한 있는 행만: 본인 문서/팀 관리자) → 하단 sticky 액션바(N개 선택됨 · 전체 선택/해제 · 선택 삭제 · 취소) → 확인 다이얼로그. `POST /documents/bulk-delete`(최대 200개/요청, 초과 시 분할 합산) — 권한 없는 항목은 skip 하는 부분 성공(`{deleted, skipped}`), 디스크+Blob 정리는 단건 삭제와 동일. 1초 폴링 중에도 선택(id Set) 유지. [documents/router.py, documents/page.tsx]
+
+검증: bulk-delete 테스트 2건 + 백엔드 전체 통과 · tsc rag 0 · dev 렌더 확인.
+
+## 2026-06-12 — 운영 PPTX/DOCX 미리보기 수정 (LibreOffice 이미지 포함)
+
+### 수정 (Fixed)
+- **운영에서 오피스 문서 미리보기 500("문서 렌더 변환 실패")** — 뷰어는 soffice 로 PDF 변환하는 구조인데 운영 백엔드 이미지에 LibreOffice 가 없었다(dev 는 호스트 설치라 정상). Dockerfile 에 libreoffice-writer/impress/calc + fonts-noto-cjk(한글 렌더) 추가, headless 구성(+~600MB). [backend/Dockerfile]
 
 ## 2026-06-12 — u-input 클래스 정의 (미정의로 맨 input 렌더되던 폼 일괄 수습)
 

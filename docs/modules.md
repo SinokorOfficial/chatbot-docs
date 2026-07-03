@@ -168,7 +168,7 @@ data/
 docker compose up -d db
 
 # 2) 백엔드
-cd backend && bash run.sh # uvicorn app.main:app --reload --port 8000
+cd backend && bash run.sh # uvicorn app.main:app --reload --port 8001
 
 # 3) 프론트
 cd frontend && npm run dev # Next.js on :3001
