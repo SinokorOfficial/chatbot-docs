@@ -7,6 +7,10 @@
 ### 추가 (Added)
 - **관리자 비밀번호 초기화** — 비밀번호를 잊은 팀원을 팀장 이상이 초기화(`POST /admin/users/{id}/reset_password`). 임시 비밀번호(urlsafe 12자)를 발급하고 대상의 **활성 refresh 토큰을 전부 철회**(탈취 의심 시에도 기존 세션 즉시 종료). 임시 비밀번호는 응답에 **한 번만** 노출(서버는 bcrypt 해시만 저장, 재조회 불가·로그 미기록) — 관리 콘솔 팀원 관리에 '비번 초기화' 버튼 + 복사 가능한 1회성 모달. 권한은 활성/비활성 토글과 동일(`_assert_can_manage`: 팀장은 자기 팀만·super_admin 대상 불가·본인 400). [admin/router.py, schemas.py, admin/page.tsx, docs/admin.md]
 
+### 변경 (Changed)
+- **매뉴얼 스크린샷 23장 전면 재생성** — dev DB 에 데모 데이터(개발팀·팀장/팀원 계정·규정 안내봇·FAQ 2건·경비규정 문서·주간보고 워크플로·공지·RAG 대화)를 시딩한 뒤 전 페이지 재캡처. 콘텐츠 페이지는 팀장 계정, 관리 페이지는 super_admin 계정으로 분리 캡처(투어 opt-out 을 storage 에 선주입해 오버레이 없는 깨끗한 화면). /chat 은 내부 스크롤 레이아웃이라 full-page 대신 뷰포트 캡처. [manual-shots/*, docs/screenshots/*]
+- **팀원 관리 목록에서 super_admin 제외** — super_admin 은 팀 미소속 전역 계정인데 전체 사용자 응답에 섞여 팀 구성원처럼 보이던 혼란 제거(관리 버튼도 원래 없던 행). 조직도/팀 삭제 모달은 기존대로 자체 분리 처리. [admin/page.tsx]
+
 ### 수정 (Fixed)
 - **채팅 "생각 중"→스트리밍 전환 버벅임** — 4중 원인 일괄 수정. ① 생각중 pill 과 스트리밍 말풍선이 *별개 DOM* 이라 첫 토큰 도착 시 pill 언마운트+말풍선 마운트로 레이아웃이 튀던 것 → 하나의 assistant 행으로 통합(빈 본문=점 애니메이션→텍스트, ChatMessage 내부에서 연속 전환). ② 토큰마다 `setStreaming` → 전체 리렌더 + 모든 히스토리 메시지 markdown 재파싱 → rAF 스로틀(프레임당 1회 flush) + `ChatMessage` 를 `React.memo` 화(함수 props 는 stale-클로저 안전 규칙으로 비교: onRegenerate 는 identity, onCiteClick 은 presence). ③ 토큰마다 `scrollIntoView(smooth)` 재시작으로 덜덜거리던 스크롤 → 스트리밍 중엔 instant, 완료 시에만 smooth. ④ 답변 완료 후 `refreshConversations` await 동안 busy=true·streaming="" 라 완성된 답변 아래 "생각 중"이 되살아나던 깜빡임 → `setBusy(false)` 를 답변 커밋과 같은 배치로 이동. [chat/page.tsx, ChatMessage.tsx]
 
