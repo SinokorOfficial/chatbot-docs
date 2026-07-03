@@ -2,6 +2,13 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-03 (3차) — 조직도 "팀은 자기 팀만"
+
+### 변경 (Changed)
+- **조직도 팀장 개방 + 자기 팀 스코프** — 조직도가 super_admin 전용이라 팀장에겐 아예 안 보였다. `GET /admin/teams/overview` 를 team_admin+ 로 열되 집계를 *자기 팀만* 반환(GROUP BY 에 team 필터), 프론트는 팀장에게 루트 라벨 "우리 팀" + 내 팀 카드 1장(팀 목록은 /auth/team 에서 파생), super_admin 은 종전대로 "조직 전체". 팀원(member)은 403. [admin/router.py, admin/page.tsx]
+
+검증: 팀장 overview=자기 팀 1행·팀원 403 실측 · 팀장 실화면(우리 팀 루트+개발팀 카드+대화 감사 메뉴 미노출) · pytest 241 · vitest 52 · tsc 0.
+
 ## 2026-07-03 (2차) — 대화 감사 super_admin 전용 + 팀 미소속 관리자 제품 사용 + 운영 UI 기준 매뉴얼 이미지
 
 ### 변경 (Changed)
