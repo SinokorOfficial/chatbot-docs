@@ -2,6 +2,12 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-06 (3차) — 경보 문서화·런북 링크 교정
+
+### 변경 (Changed)
+- **경보 카탈로그 문서화** — operations.md §8 에 심각도 레벨 기준표(Sev0~4 의미·기대 대응)와 경보 7종별 발동 조건·레벨·대응 절차 표 추가. Teams 카드 이모지(🔴🟠🟡⚪)를 문서 기준과 일치하도록 Sev3/Sev4 분리. 적용 범위가 chatbot 한정(총무·공시는 알림 0개)임을 명기. [docs/operations.md, Logic App]
+- **Teams 카드 런북 링크 404 교정** — operations.md 는 사내 전용이라 공개 docs 사이트에서 제외(sync exclude)되는데 카드가 공개 URL 을 가리켜 404. 사내 GitHub(SinokorOfficial/chatbot) 링크로 교체. 실경보(임시 linktest 규칙) 발화로 전체 체인(경보→메일+Teams 카드→실제 alertId 포털 링크) 검증 후 임시 규칙 삭제. [Logic App, docs/operations.md]
+
 ## 2026-07-06 (2차) — 출처 클릭 → 문서 점프·하이라이트 대폭 개선 (속도·정확도·시각)
 
 ### 수정 (Fixed)
