@@ -13,6 +13,11 @@
 
 검증: Playwright 실측 — 10p PDF 출처 클릭→하이라이트 2.6s(콜드)/1.6s(캐시 재오픈), 대상 페이지 직행(잔여 페이지 placeholder 지연 렌더 확인), 노랑+점선 프레임+뱃지 스크린샷 확인, txt 하이라이트 223ms · tsc 0 · vitest 52 green.
 
+## 2026-07-06 (2차) — Teams 한국어 경보 중계
+
+### 추가 (Added)
+- **경보 → Teams 한국어 카드** — Azure 기본 알림 메일이 영어 템플릿 고정이라, 액션그룹에 웹훅(공통 알림 스키마)을 추가하고 Logic App(`chatbot-alerts-teams`)이 한국어 카드(심각도 이모지·KST 시각·대상·설명·지표·포털/런북 링크)로 조립해 Teams **AX-운영** 채널에 게시(발생 🔴/해소 ✅). 사내 테넌트가 Teams 수신 웹훅(Workflows) 생성을 막아 Teams 커넥터(Post message in a channel) + OAuth 연결(`teams-chatbot-alerts`) 방식 채택. 기존 메일 발송과 병행. 검증: 발생·해소 테스트 2건 채널 게시 확인(Logic App 런 Succeeded). [Azure: Logic App·API 연결·액션그룹 / docs/operations.md]
+
 ## 2026-07-06 — 운영 모니터링 보강 (DB 알림·외부 가용성 핑·프론트 5xx)
 
 ### 추가 (Added)
