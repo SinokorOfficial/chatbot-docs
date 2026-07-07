@@ -2,6 +2,16 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-07 (3차) — 포털 SSO 핸드오프 + 자체 회원가입 종료
+
+### 추가 (Added)
+- **SSO 핸드오프 로그인** — 사내 포털이 공유 시크릿(HS256) 서명 단기 JWT(sub=email·name·team·iat·exp·jti)와 함께 `/sso?token=…` 으로 사용자를 넘기면, `POST /auth/sso/exchange` 가 서명/수명(≤300s)/jti 1회용 검증 후 **계정 자동 생성(JIT, approved)** + access/refresh 발급 → /chat 진입. 팀은 claims.team find-or-create(기본 BOOTSTRAP 팀). SSO 계정은 로그인 불가 랜덤 비밀번호 해시. `GET /auth/config` 로 프론트가 가입 노출 여부 결정. [auth/router.py, config.py, app/sso/page.tsx, AuthExperience.tsx]
+
+### 변경 (Changed)
+- **자체 회원가입 종료(운영)** — `FEATURE_SIGNUP=false` 로 /auth/register 403 + 가입 UI 숨김(로그인 화면 안내 교체). 가입 경로는 포털 단일화, 예외 온보딩은 팀장 직접 등록(POST /team/members) 유지. 포털 연동 스펙은 operations.md §10. [운영 env, docs/operations.md]
+
+검증: pytest 247(신규 SSO 4: JIT+재사용 차단·서명 위조 401·미구성 403·가입 차단 403) · tsc 0.
+
 ## 2026-07-07 (2차) — 진짜 웹 검색 (SearXNG 자체호스팅) + 도구 안내 환각 차단
 
 ### 추가 (Added)
