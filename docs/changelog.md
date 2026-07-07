@@ -2,6 +2,23 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-07 (2차) — 진짜 웹 검색 (SearXNG 자체호스팅) + 도구 안내 환각 차단
+
+### 추가 (Added)
+- **web_search 를 일반 채팅 상시 도구로** — "오늘 뉴스" 류 최신 정보 질의가 운영 핵심 사용례인데 지금까지 채팅에 검색 도구가 연결돼 있지 않았다. SearXNG(자체호스팅 메타검색, 무료·무제한·키 불필요)를 Azure Container Apps 내부 인그레스로 배포(`chatbot-searxng`, scale-to-zero)하고 `SEARXNG_BASE_URL` 로 1순위 사용, 미설정/실패 시 DuckDuckGo 폴백(단 클라우드 IP 는 ratelimit 로 사실상 0건 — 그간 검색이 항상 빈손이던 원인). dev 는 docker-compose `searxng` 서비스(127.0.0.1:8888). `FEATURE_WEB_SEARCH` 로 끌 수 있음(기본 dev/prod 모두 ON). [web_search.py, config.py, chat/router.py, tools.yaml, docker-compose.yml, infra/searxng/]
+
+### 수정 (Fixed)
+- **"검색하는 척" 환각 차단** — 시스템 프롬프트의 도구 안내가 정적 목록이라 실제 미장착 도구(web_search 등)까지 소개돼, 모델이 존재하지 않는 도구 호출을 흉내 내고 결과(가짜 뉴스/환불 안내)를 지어냈다. 도구 안내를 *이 대화에서 실제 허용된 슬러그*만 나열하도록 동적 생성 + "목록에 없는 기능은 할 수 없다고 정직하게" 지시 추가. 검색 0건일 때도 지어내기 금지 문구를 결과 포맷에 명시. [prompt_builder.py, chat/router.py]
+
+검증: SearXNG JSON API 로컬·실검색(오늘자 장금상선 기사 5건) · pytest 243 · 운영 배포 후 실채팅 확인 예정.
+
+## 2026-07-07 — 내비 라벨 통일 + 계정·키 힌트 오탐 제거 + 메모리 '기억' 표현
+
+### 수정 (Fixed)
+- **같은 화면이 진입점마다 다른 이름** — ⌘K 팔레트·아바타 메뉴·상단 드롭다운에서 동일 목적지를 다르게 부르던 것을 목적지 페이지 제목 기준으로 통일: /guide=메뉴얼, /mypage=마이페이지(사용량·설정), /team=대화 감사(구성원 대화 열람), /admin=관리 콘솔, /faq=물어보기·자주 묻는 질문, /notices 힌트=새 소식. /team 본문 H1 도 '대화 관리'→'대화 감사'. [CommandPalette.tsx, AvatarMenu.tsx, NavMenu.tsx, team/page.tsx]
+- **첫 응답 후 '계정·키 상태 못 불러옴' 힌트 오탐** — BYOK/Claude Code 는 개발 전용(ADR-0009)이라 운영(rag) 빌드엔 라우터가 없어 `/claude_code/account`·`/auth/me/api-keys` 조회가 404 → 경고 힌트가 튀었다. 운영에선 조회 자체를 스킵 + 404(기능 부재)는 힌트를 띄우지 않도록 방어. [chat/page.tsx]
+- **메모리 카드 '학습'→'기억' 표현** — in-context(대화에서 뽑은 사실을 프롬프트에 주입)이지 모델 재학습이 아님을 명확히. [mypage/page.tsx]
+
 ## 2026-07-06 (7차) — 문서 업로드 '개인' 하드코딩 사고 수정 + 스코프 전환
 
 ### 수정 (Fixed)
