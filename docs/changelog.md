@@ -2,6 +2,39 @@
 
 날짜는 YYYY-MM-DD, 가장 최신이 위.
 
+## 2026-07-09 — 문서 업로드 기본 범위 개인 전환 + 팀 공유 오염 경고
+
+### 변경 (Changed)
+- **업로드 기본 공개 범위 팀→개인** — 검증 안 된 문서(초안·구버전·메모)가 팀 전체 RAG 를 오염시켜 부정확한 답변을 유발하는 위험이 더 크다고 판단(2026-07-09 정책). 팀 문서 선택 시 오염 경고 배너, 카드의 개인→팀 전환 확인창에도 동일 경고. 공식 규정·매뉴얼은 관리자가 의도적으로 팀으로 업로드. (2026-07-06 의 반대 방향 전환 — 사유 코드 주석에 기록) [documents/page.tsx, user_manual.md]
+
+## 2026-07-08 — 문서 폴더 이름 변경/삭제
+
+### 추가 (Added)
+- **폴더 관리(이름 변경·삭제)** — 자료 페이지 폴더 목록에서 hover 시 ✏️/🗑️. 폴더는 물리 디렉토리가 아니라 문서의 folder 라벨이라: 이름 변경은 해당 폴더+하위 문서 folder 접두사 일괄 치환(`PATCH /documents/folders/rename`), 삭제는 문서를 '미분류'로 이동하고 라벨만 제거(`DELETE /documents/folders`) — **문서 자체는 보존**(실수로 자료 소실 방지). 타인 personal 문서는 제외, super_admin 은 전역 버킷 적용. [documents/router.py, documents/page.tsx]
+
+검증: pytest 252(신규 2 — 하위 폴더 포함 이름변경·삭제 후 미분류 이동) · tsc 0 · vitest 52.
+
+## 2026-07-07 (6차) — 그룹웨어 위임 로그인 + 전사 2,930명 사전 동기화 완료
+
+### 추가 (Added)
+- **그룹웨어 아이디/비밀번호 위임 로그인** — 로그인 화면에서 그룹웨어 USER_ID + 비밀번호 그대로 입력(이메일도 계속 가능, @ 유무로 구분). HR 동기화가 login_id·USER_PASS(SHA-256)를 저장하고 sha256 대조(비교는 timing-safe). users 에 login_id(부분 유니크)·external_pass_sha256 추가, 신규 계정 placeholder bcrypt 는 실행당 1회 계산(수천 명 최초 동기화 10분+ → 수십 초). 배치 내 중복 이메일(공용 계정 125행)은 재직 행 우선 병합, 중복 login_id 는 뒤 행만 무효화. [models.py, schema_upgrade.py, hr_sync.py, auth/router.py, schemas.py, AuthExperience.tsx]
+
+### 검증 (dev 실측)
+- 그룹웨어 Oracle 11g 실동기화: **2,930명·345팀 생성**, 재실행 멱등(created 0). 샘플 확인(lake→호수현·전산팀). pytest 250(신규 위임 로그인 1).
+
+## 2026-07-07 (5차) — HR 동기화 Oracle 11g 지원 (thick 모드)
+
+### 변경 (Changed)
+- **Oracle 11g(그룹웨어) 접속 지원** — thin 거부(DPY-3010) → Instant Client 19 thick 모드. Ubuntu24 libaio t64 soname·libnnz19 SONAME 부재를 patchelf 로 교정하고, 본 프로세스 선로드의 초기화 불안정(ORA-01804)을 피해 조회를 서브프로세스(LD_LIBRARY_PATH)로 분리. Oracle 대문자 컬럼 별칭 정규화. 접속정보는 개별 변수(HR_DB_KIND/HOST/PORT/NAME/USER/PASSWORD, 자동 인코딩 DSN 조립). oracledb 의존성 추가. 실측: 사내 그룹웨어 서버까지 인증 단계 도달(ORA-01017 = 자격증명만 남음). 절차 operations.md §11. [hr_sync.py, config.py, pyproject]
+
+
+## 2026-07-07 (4차) — 인사 DB 사용자 사전 동기화 (매일 9시)
+
+### 추가 (Added)
+- **HR 동기화 배치** — 매일 09:00 KST(APScheduler 크론, `HR_SYNC_CRON`)에 사내 인사 DB(`HR_DB_DSN`+`HR_SYNC_QUERY`, 컬럼 계약 email·name·team·active)를 조회해 사용자를 사전 생성/갱신. 신규=approved·로그인 불가 비밀번호(SSO 전용), 기존=이름/팀 정본 동기화+재직 상태 반영, super_admin 불변, 미포함 계정 비활성화는 옵트인(`HR_SYNC_DEACTIVATE_MISSING`). 수동 실행 `POST /admin/hr-sync/run`(super_admin). 설정 가이드 operations.md §11. [services/hr_sync.py, schedule_runner.py, admin/router.py, config.py]
+
+검증: pytest 249(신규 2 — 생성/개명/퇴사 반영·미구성 400).
+
 ## 2026-07-07 (3차) — 포털 SSO 핸드오프 + 자체 회원가입 종료
 
 ### 추가 (Added)
