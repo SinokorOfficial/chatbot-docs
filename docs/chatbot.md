@@ -7,7 +7,7 @@
 - 이름/설명/아이콘
 - 모델 ID (`openai/gpt-4o` 등)
 - 시스템 프롬프트
-- 가시성 (`private` · `public` · `shared`) — private=소유자만, public=소유자 팀 전체, shared=소유자 팀 + 승인된 추가 팀(교차팀). 자세한 내용은 [chatbot_sharing.md](./chatbot_sharing.md)
+- 가시성 (`private` · `public` · `shared` · `company`) — private=소유자만, public=소유자 팀 전체, shared=소유자 팀 + 승인된 추가 팀(교차팀), company=전사 공개(최종관리자만 설정). 자세한 내용은 [chatbot_sharing.md](./chatbot_sharing.md)
 - 참조 문서 집합 (RAG 스코프)
 - 허용된 도구 집합 (마켓에서 선택)
 
@@ -18,8 +18,9 @@
 | 값 | 설명 |
 | --- | --- |
 | `private` | **오너만** 대화할 수 있음. `conversations` 테이블에서도 `user_id = owner`인 대화만 생성. |
-| `public` | **같은 팀의 모든 사용자**가 대화 가능(교차팀 아님 — 오너 팀 한정). 단, 문서는 챗봇에 연결된 것만 바라봄(오너 관점에서 "내가 넣은 문서"). |
-| `shared` | **소유자 팀 전체 + `chatbot_team_access` 에 등록된 추가 팀**의 구성원이 대화 가능(교차팀 공유). 단, 타 팀 사용자에게는 RAG 가 챗봇에 연결된 문서(linked-only)로 강제 격리됨(`resolve_rag_scope_doc_ids`). 자세한 내용은 [chatbot_sharing.md](./chatbot_sharing.md). |
+| `public` | **같은 팀의 모든 사용자**가 대화 가능(교차팀 아님 — 오너 팀 한정). 근거 문서는 가시성이 아니라 §3 RAG 스코프(근거 범위)가 정한다. |
+| `shared` | **소유자 팀 전체 + `chatbot_team_access` 에 등록된 추가 팀**의 구성원이 대화 가능(교차팀 공유). 타 팀 사용자에게도 §3 RAG 스코프가 적용되되 더 좁게 적용된다(2026-10-26 — 예전에는 연결 문서만으로 강제 축소). 자세한 내용은 [chatbot_sharing.md](./chatbot_sharing.md). |
+| `company` | 로그인한 **누구나** 대화 가능(전사 공개, 최종관리자만 설정, 2026-09-04). RAG 는 `shared` 와 같은 규칙. |
 
 Public 챗봇은 예를 들어 "인사규정 Q&A 봇", "기술지원 봇"처럼 팀 공용 어시스턴트를 만들 때 사용합니다. 다른 팀원은 문서에 직접 접근 권한이 없더라도 챗봇을 통해 질의응답이 가능합니다.
 
@@ -27,9 +28,11 @@ Public 챗봇은 예를 들어 "인사규정 Q&A 봇", "기술지원 봇"처럼 
 
 | 스코프 | 설명 | 권장 사용처 |
 | --- | --- | --- |
-| `linked_only` | `chatbot_documents`로 연결된 문서만 | Public 챗봇 기본값 (사용자 요청) |
-| `owner_visible` | 오너가 조회 가능한 모든 문서 (팀 공용 + 오너 개인 + 오너에게 공유된 문서) | 오너 개인 비서형 private 챗봇 |
-| `team_all` | 팀 전체 문서 | 범용 팀 어시스턴트 |
+| `linked_only` | `chatbot_documents`로 연결된 문서만 | 생성 기본값. 다른 팀에 나가는 문서를 하나하나 통제할 때 |
+| `owner_visible` | 오너가 조회 가능한 모든 문서 (팀 공용 + 오너 개인 + 오너에게 공유된 문서). 다른 팀 사용자는 **오너가 직접 올린 문서(개인·팀, 처리 완료)만** | 오너 개인 비서형 private 챗봇 |
+| `team_all` | 팀 전체 문서 — 소유 팀 사용자는 팀 문서 + 본인 개인·공유 문서, 다른 팀 사용자는 소유 팀의 **팀 공개 문서(처리 완료)만**(연결 문서·개인 문서 제외) | 범용 팀 어시스턴트 |
+
+스코프는 공개받은 다른 팀(super_admin 제외)에도 적용된다(2026-10-26). 다만 위 표처럼 더 좁게 적용된다. 그래서 `shared`·`company` 챗봇에서 `owner_visible` 을 고르면 오너가 직접 올린 개인 문서까지 다른 팀의 답에 인용될 수 있다 — 다른 팀에 보이면 안 되는 자료는 개인 문서로 올리고(`team_all` 일 때) 그래도 걱정되면 `linked_only` 로 둔다. 다른 팀 사용자는 스코프 안 문서(인용 여부와 무관)의 원문도 열고 내려받을 수 있다. 범위 밖은 404. 전역 봇(`team_id` NULL)은 다른 팀에 연결 문서만 준다. 상세는 [chatbot_sharing.md](./chatbot_sharing.md) §6.
 
 ## 4. 데이터 모델 (신규 테이블)
 
@@ -50,7 +53,7 @@ chatbot_tools (id, chatbot_id, tool_id, enabled, config, created_at)
 
 | 메서드 | 경로 | 설명 |
 | ------ | ---- | ---- |
-| `GET` | `/chatbots` | 내가 접근 가능한 챗봇 목록(내 private + 팀 public) |
+| `GET` | `/chatbots` | 내가 접근 가능한 챗봇 목록(내 챗봇 + 내 팀 public/shared + 내 팀에 공유된 shared + company) |
 | `POST` | `/chatbots` | 챗봇 생성 |
 | `GET` | `/chatbots/{id}` | 단건 상세 |
 | `PATCH`| `/chatbots/{id}` | 이름/프롬프트/스코프/가시성/`extra_team_ids`(공유 팀 인라인 지정) 등 수정. 별도 `/shares` 엔드포인트는 없음 — 공유 팀은 POST·PATCH 의 `extra_team_ids` 로 처리(`visibility != shared` 면 백엔드가 자동 비움) |
@@ -96,7 +99,7 @@ Content-Type: application/json
 | ---- | --------- |
 | 본인 챗봇 생성 | 모든 사용자 |
 | 다른 팀원의 public 챗봇 사용 | 같은 팀 소속 사용자 |
-| 다른 팀의 챗봇 사용 | ❌ (팀 격리) |
+| 다른 팀의 챗봇 사용 | `shared` 로 내 팀에 공유됐거나 `company` 인 것만(그 외는 팀 격리). 근거는 그 챗봇의 RAG 스코프대로 |
 | 본인 챗봇 수정/삭제 | 오너 |
 | 팀 내 다른 오너의 챗봇 수정/삭제 | `team_admin` 이상 |
 | 챗봇에 문서 연결 | 연결할 문서가 **사용자에게 보이는** 문서여야 함 (팀 공용 or 본인 개인 or 본인에게 공유된 문서) |

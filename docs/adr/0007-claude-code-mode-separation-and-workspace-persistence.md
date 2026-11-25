@@ -219,3 +219,4 @@ export function WorkspaceProvider({ conversationId, children }: Props) {
 ## 8. 변경 이력
 
 - **2026-06-04** — `/chat` 의 두 실사용 버그 (단순 채팅에서도 Workspace 보임 / 대화 전환 시 이전 파일 잔존) 확인 후 작성. Workspace 컴포넌트 *조건부 mount* + `SET_WORKSPACE_ID/REPLACE_FILES` dispatch flow + 6-effort + Anthropic-only 모델 셀렉트 결정. 구현은 P0 (1주) 예정.
+- **2026-10-26** — 후속 변경 메모(본문 결정은 그대로): §5-2 의 "공유는 챗봇 정의까지" 는 대화 workspace·파일 범위 이야기다. 공유 챗봇의 RAG 근거 문서는 2026-10-26 부터 챗봇 근거 범위(`rag_scope`)에 따라 공유받은 팀에도 쓰인다(다른 팀에는 좁게 적용) — [chatbot_sharing.md](../chatbot_sharing.md).

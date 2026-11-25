@@ -58,12 +58,14 @@
 
 | 메서드 | 경로 | 설명 |
 | ------ | ---- | ---- |
-| POST | `/documents/upload` | 멀티파트. `scope=team\|personal` + 파일 N개 |
-| GET | `/documents` | 내게 보이는 팀 문서 목록(팀 공용 + 본인 개인 + 본인에게 공유된 문서만 — 타인 개인 문서는 격리). `q=`/`folder=` 필터 지원 |
-| GET | `/documents/by-id/{id}` | 단건 메타(인용 뷰어용). 내 팀 문서이거나 **내가 쓸 수 있는 챗봇에 연결된 문서**면 반환 — 전사 공유 챗봇이 인용한 타 팀 문서를 열기 위함 |
-| GET | `/documents/by-name?filename=` | 파일명으로 단건 해석. `document_id` 가 없는 *레거시 인용*, 원본이 삭제·재업로드되어 id 가 바뀐 경우용. 권한 규칙은 `by-id` 와 동일하고 챗봇 연결 문서를 우선 |
+| POST | `/documents/upload` | 멀티파트. `scope=team\|personal` + 파일 N개. 상한=파일당 50MB·1요청 30개·합계 150MB. 프런트는 대량 선택 시 45MB·20개 **묶음**으로 쪼개 순차 전송(프록시 본문 상한 60MB) |
+| GET | `/documents` | 내게 보이는 팀 문서 목록(팀 공용 + 본인 개인 + 본인에게 공유된 문서만 — 타인 개인 문서는 격리). `q=`/`folder=` 필터 + `sort=` 지원(`created_desc` 기본·최신순 / `created_asc` / `name_asc` / `name_desc` — 파일명은 대소문자 무시, id 2차정렬로 안정). 모르는 값은 최신순 폴백 |
+| GET | `/documents/by-id/{id}` | 단건 메타(인용 뷰어용). 내 팀 문서이거나 **내가 쓸 수 있는 챗봇의 근거 범위 안 문서**면 반환 — 공유·전사 공개 챗봇이 인용한 타 팀 문서를 열기 위함. 근거 범위는 챗봇의 `rag_scope` 를 따르되 다른 팀에는 좁게 적용된다(`linked_only`=연결 문서 / `team_all`=소유 팀 팀 공개 문서(ready)만 / `owner_visible`=소유자가 직접 올린 문서(개인·팀, ready)만, 2026-10-26 — 예전에는 연결 문서만). 인용 여부와 무관하게 범위 안이면 열린다. `/rendered`·`/sheets`·`/download` 도 같은 판정(`_chatbot_grants_read`). 범위 밖 타 팀 문서는 404 |
+| GET | `/documents/by-name?filename=` | 파일명으로 단건 해석. `document_id` 가 없는 *레거시 인용*, 원본이 삭제·재업로드되어 id 가 바뀐 경우용. 권한 규칙은 `by-id` 와 동일하고 챗봇 근거 범위 안 문서를 우선 |
 | DELETE | `/documents/{id}` | 삭제 → 청크/공유/챗봇링크 cascade 삭제 + 파일 unlink |
 | POST | `/documents/{id}/share` | 개인 문서를 팀원에게 공유 |
+| POST | `/documents/{id}/reindex` | 저장된 청크를 버리고 원본을 다시 파싱·임베딩(문서 id·챗봇 연결 유지). 파서 개선 뒤 기존 문서에 적용할 때. super_admin 또는 같은 팀 소유자·팀 관리자, 처리 중이면 409. 응답은 status=processing·chunk_count=0 인 문서. |
+| GET | `/documents/{id}/sheets` | 엑셀(xlsx/xlsm/xls)을 시트별 표 JSON 으로 — `{sheets:[{name, rows[][], merges[[row,col,rowspan,colspan]], col_widths, first_row, first_col, row_count, col_count, truncated}], truncated}`. 앞뒤 빈 행·열은 잘라 내고 좌표는 잘라 낸 표 기준 0-base. 시트당 2,000행·80열, 전체 20만 셀 상한. 엑셀이 아니면 415, 권한은 `/rendered` 와 같다. ETag(`<sha>-sheets`) 로 304. |
 
 ## 답변 내보내기
 
@@ -85,6 +87,7 @@
 상한: 한 요청 120개 문구 / 문구당 1,500자 / 합계 24,000자.
 
 ## Chatbots (`/chatbots`, 신규)
+| — | `contact_info` (챗봇 필드) | 담당자 연락처(이메일·전화·공용 사서함, 최대 300자). POST/PATCH `/chatbots` 로 설정, 응답에 `contact_info`·`owner_email`(비웠을 때의 기본값) 포함. 비우면 소유자 이메일이 "문의해 주세요" 안내에 쓰인다. |
 
 자세한 내용은 [chatbot.md](./chatbot.md) 참조.
 
@@ -110,7 +113,7 @@
 
 | 메서드 | 경로 | 설명 |
 | ------ | ---- | ---- |
-| POST | `/chat/stream` | SSE. Body: `{conversation_id?, chatbot_id?, model, message, use_rag, image_base64?, files?, claude_code_mode?, reasoning_effort?, claude_code_options?}`. **`claude_code_mode`/`claude_code_options`/`reasoning_effort` 는 개발 전용** — 운영(`FEATURE_CLAUDE_CODE` OFF)에서 `claude_code_mode=true` 면 403(`이 환경에서는 Claude Code 모드를 사용할 수 없습니다.`). `use_rag` 는 프론트가 *챗봇 선택 여부*로 보냄(일반 채팅=false·모델 지식만, 챗봇 대화=true, 실효값은 챗봇 설정과 AND — 30차) |
+| POST | `/chat/stream` | SSE. Body: `{conversation_id?, chatbot_id?, model, message, use_rag, image_base64?, files?, claude_code_mode?, reasoning_effort?, claude_code_options?}`. **`claude_code_mode`/`claude_code_options`/`reasoning_effort` 는 개발 전용** — 운영(`FEATURE_CLAUDE_CODE` OFF)에서 `claude_code_mode=true` 면 403(`이 환경에서는 Claude Code 모드를 사용할 수 없습니다.`). `use_rag` 는 프론트가 *챗봇 선택 여부*로 보냄(일반 채팅=false·모델 지식만, 챗봇 대화=true, 실효값은 챗봇 설정과 AND — 30차. **70차부터 챗봇에 묶인 대화는 `use_rag` 와 무관하게 챗봇 설정대로 검색**). **답변 재사용(71차)**: 챗봇 문서 질문이 같은 날 같은 검색어·같은 문서 버전이면 LLM 없이 저장된 답을 보내며 프레임 순서는 `citations` → `t` → `used_citations` → `cached: true` → (`title`) → `done`. 저장된 메시지 extra 에 `cached`·`cache_key` |
 | POST | `/chat/regenerate` | 마지막 응답 재생성 |
 
 `files[]` 항목은 `{filename, b64, relpath?}` 입니다. `relpath` 는 **폴더 첨부** 시 상대 경로(예: `src/app/page.tsx`)로, 클로드 코드 모드 워크스페이스에 디렉토리 구조를 그대로 재현하는 데 쓰입니다. 구조 보존은 백엔드 `app/core/pathsafe.safe_relative_path` 게이트를 통과한 경로에만 적용되며, traversal 위험 경로는 basename 으로 격하됩니다. `claude_code_mode=true` 면 LLM/RAG/메모리 매칭을 모두 건너뛰고 `run_claude_code_stream` 으로 직행하고, `reasoning_effort` 는 실제 CLI `--effort`(`low|medium|high|xhigh|max`)로 전달됩니다.
@@ -218,3 +221,4 @@ KRW 환산은 USD 환율 조회 성공 시 최신 값을 쓰고, 실패하면 `U
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | GET | `/team/audit/chatbots` · `/team/audit/chatbots/{id}/users` · `/team/audit/chatbots/{id}/conversations?user_id=` · `/team/audit/chatbots/{id}/conversations/{conv}/messages` | 챗봇별 대화 감사(2026-09-04). 자기 팀의 팀 공개(public/shared) 챗봇 대화를 그 팀 구성원 모두가 열람(개인용 private 은 소유자·super_admin 만), super_admin 은 전체. 다른 팀 챗봇 403, 챗봇 밖 대화 404. |
+| POST | `/team/audit/export` | 감사 대화를 엑셀(xlsx)로. 대상은 `{conversation_ids[]}`(최대 500) · `{chatbot_id, user_ids[]?}`(챗봇 전체 / 고른 사람들, 최대 200명) · `{chatbot_id, user_id}` · `{user_ids[]}`·`{user_id}`(구성원 축, super_admin 전용) 중 하나. 여기에 `date_from`/`date_to`(YYYY-MM-DD, 한국 날짜, 양끝 포함)를 얹어 기간을 끊는다 — 기간과 겹치는 대화를 통째로 담는다. 권한은 화면과 같은 규칙이며 선택 목록의 대화는 하나씩 검사한다. 시트 4장(요약·질문·답변·대화 목록·대화 원문). |

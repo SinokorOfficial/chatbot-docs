@@ -22,7 +22,7 @@ tools (카탈로그 — 시스템 전역)
 
 | kind | 실행 방식 | 예시 |
 | ---- | -------- | ---- |
-| `builtin` | 에이전트 루프(`agent.py`)에서 직접 실행하는 파이썬 핸들러 | `web_search`, `claude_code`, `image_generate`, `stock_price`, `stock_history`, `schedule_query` |
+| `builtin` | 에이전트 루프(`agent.py`)에서 직접 실행하는 파이썬 핸들러 | `web_search`, `claude_code`, `image_generate`, `stock_price`, `stock_history`, `schedule_query`, `leave_calc` |
 | `http` | 등록된 URL로 POST 호출 (webhook 스타일) | 사내 API, 슬랙 Incoming Webhook |
 | `oauth` | 자격증명을 꺼내 외부 API 호출 | Gmail 발송, 캘린더 조회, Microsoft 365 |
 | `mcp` | MCP 서버의 도구 호출 | `mcp__claude_ai_Gmail__*` 등 Anthropic MCP 커넥터 |
@@ -38,6 +38,7 @@ tools (카탈로그 — 시스템 전역)
 | `image_generate` | 이미지 생성 | productivity | builtin | 마케팅 챗봇 |
 | `stock_price` | 실시간 주가 | data | builtin | 금융 챗봇 |
 | `stock_history` | 주가 이력 CSV | data | builtin | 금융 챗봇 |
+| `leave_calc` | 연차 계산 — 입사일·기준일 → 연차 일수(근로기준법 제60조 = 휴가 규정 제4조 산식, 코드 계산) | data | builtin | 전 챗봇 상시(2026-10-19) |
 | `schedule_query` | 예약 등록 미리보기 | productivity | builtin | 내부 전용(마켓 미노출, `show_in_marketplace=false`) |
 | `gmail.send` | Gmail 메일 발송 | communication | oauth | 요청 시 |
 | `gmail.search` | Gmail 메일 검색 | communication | oauth | |

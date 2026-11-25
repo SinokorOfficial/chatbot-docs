@@ -70,6 +70,7 @@ const handleLogout = () => {
 1. **기본** — 이름, 설명, 모델, 시스템 프롬프트, 가시성, 근거 범위
    - **가시성**: 3값(`나만`/`우리 팀`/`선택 팀`) 라디오 카드 `VisibilityChooser` (`features/chatbots/VisibilityChooser.tsx`). `선택 팀`(=`shared`) 선택 시 바로 아래에 회사→팀 트리+검색 `TeamPicker` 가 펼쳐지고, 고른 팀은 저장 시 `extra_team_ids` 로 전달된다.
    - **근거 범위**: `RagScopeChooser` 가 `use_rag`(bool) + `rag_scope`(`linked_only`/`owner_visible`/`team_all`)를 한 컨트롤(안 봄/고른 문서만/내가 올린 문서 전체/우리 팀 문서 전체)로 통합한다.
+   - **교차팀 근거 범위 안내**(2026-10-26): 근거 범위 카드 바로 아래 `CrossTeamRagNotice`(`features/chatbots/CrossTeamRagNotice.tsx`). `use_rag` 이고 가시성이 `선택 팀`/`전사 공개`, 근거 범위가 `우리 팀 문서 전체`/`내가 올린 문서 전체` 일 때만 보인다 — 다른 팀도 그 범위로 답을 받는다는 안내(판정·문구는 `features/chatbots/crossTeamScope.ts`). 만들기 화면(`/chatbots`)은 근거 범위 단계와 공개 범위 단계 양쪽에 같은 안내를 둔다.
 2. **고를 문서** — `use_rag && rag_scope === 'linked_only'` 일 때만 렌더된다. 인라인 체크박스 대신 `DocumentPickerModal`(검색·폴더 트리·무한 스크롤 페이지네이션, 수만 건 대응)로 지정 문서를 고른다.
 3. **장착된 도구** — 활성화 토글. 도구는 개발 전용(ADR-0009)이라 운영(rag) 빌드에선 미노출.
 

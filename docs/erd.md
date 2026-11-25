@@ -679,3 +679,51 @@ erDiagram
     USERS ||--o{ USER_FAQ_COMMENT_UPVOTES : "좋아요"
     FAQ_COMMENTS ||--o{ USER_FAQ_COMMENT_UPVOTES : ""
 ```
+
+## 2026-10-12 — answer_cache (챗봇 문서 답변 재사용)
+
+같은 날 같은 챗봇에 같은 내용을 물으면 이미 만든 답을 다시 쓴다(`services/answer_cache.py`). 행은 대화의 *첫 질문* 에 대한 문서 답(도구·이미지·예약 없음, 출처 1개 이상)만 저장하고, 2일 지난 행은 저장 때 정리한다. 새 테이블이라 기동 시 `Base.metadata.create_all` 이 만든다. `FEATURE_ANSWER_CACHE=false` 로 즉시 끈다.
+
+```mermaid
+erDiagram
+    CHATBOTS ||--o{ ANSWER_CACHE : "재사용 답변"
+    ANSWER_CACHE {
+        uuid id PK
+        varchar cache_key UK "검색어 키 SHA-256"
+        varchar msg_key "첫 질문 문장 키"
+        uuid chatbot_id FK "CASCADE"
+        text query "정규화 검색어"
+        text answer "호칭 자리표시"
+        jsonb citations "인용 출처"
+        varchar model
+        varchar title "처음 대화 제목"
+        int hits
+        timestamptz created_at
+        timestamptz last_hit_at
+    }
+    MESSAGES {
+        jsonb extra "cached, cache_key 추가"
+    }
+```
+
+### answer_cache
+| 컬럼 | 타입 | 제약 | 설명 |
+| ---- | ---- | ---- | ---- |
+| id | UUID | PK | |
+| cache_key | VARCHAR(64) | UNIQUE NOT NULL | (챗봇 id · 챗봇 updated_at · 모델 · 화면 언어 · 한국 날짜 · 검색 범위 문서 버전 지문 · 'q' · 정규화 검색어)의 SHA-256. 문서 버전 지문 = 범위 문서별 상태·sha256·크기·청크 수·최대 청크 id |
+| msg_key | VARCHAR(64) | NULL, INDEX | 같은 재료 + 'm' + 대화 *첫 질문* 문장(소문자, 띄어쓰기·문장부호 제거, 4자 이상)의 SHA-256. 같은 문장에도 검색 계획 검색어가 매번 달라져 추가(스키마 보정 `ALTER TABLE … ADD COLUMN IF NOT EXISTS`) |
+| chatbot_id | UUID | FK chatbots.id ON DELETE CASCADE, INDEX | 챗봇 삭제 시 함께 삭제 |
+| query | TEXT | NOT NULL | 정규화한 검색어(최대 500자) — 운영 확인용 |
+| answer | TEXT | NOT NULL | 답 원문. 사용자 호칭 `{이름}님` 을 자리표시(U+E000 NAME U+E000)로 바꿔 저장하고, 꺼낼 때 묻는 사람 이름으로 채운다 |
+| citations | JSONB | NOT NULL DEFAULT '[]' | 그 답이 실제 인용한 출처(idx·chunk_id·filename·content·document_id) |
+| model | VARCHAR(120) | NOT NULL | 답을 만든 모델 |
+| title | VARCHAR(200) | NULL | 처음 답한 대화의 자동 제목 — 재사용 때 제목 AI 호출 없이 그대로 쓴다(스키마 보정 ALTER) |
+| hits | INTEGER | NOT NULL DEFAULT 0 | 재사용 횟수 |
+| created_at | TIMESTAMPTZ | DEFAULT now(), INDEX | 정리 기준(2일) |
+| last_hit_at | TIMESTAMPTZ | NULL | 마지막 재사용 시각 |
+
+### messages.extra (키 추가)
+| 키 | 타입 | 설명 |
+| ---- | ---- | ---- |
+| cached | bool | 재사용한 답이면 true — 화면의 "이전 답변 재사용" 표시 |
+| cache_key | str | 저장했거나 재사용한 answer_cache 행의 키 — "다시 생성" 시 이 행을 지운다 |

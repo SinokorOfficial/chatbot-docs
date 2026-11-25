@@ -70,9 +70,11 @@ HR/SSO 로 커버되지 않는 예외는 팀장이 `POST /team/members` 로 이�
 | 챗봇 생성 | | | | |
 | Public 챗봇 공개 | | | | (본인 생성만) |
 | 타인의 챗봇 수정 | (전체) | (본인 팀) | ❌ | ❌ |
-| 타팀 챗봇 사용(대화) | (전체 — private 포함, RAG 는 연결 문서만) | shared 로 열린 것만 | shared 로 열린 것만 | shared 로 열린 것만 |
+| 타팀 챗봇 사용(대화) | (전체 — private 포함) | shared 로 열린 것 · company | shared 로 열린 것 · company | shared 로 열린 것 · company |
 | 도구 카탈로그 관리 | | ❌ | ❌ | ❌ |
 | 도구 자격증명 등록(본인 계정) | | | | |
+
+타팀 챗봇을 쓸 때 근거 문서는 그 챗봇의 근거 범위(`rag_scope`)를 따르되 다른 팀에는 좁게 적용됩니다 — `team_all` 이면 소유 팀의 팀 공개 문서(처리 완료)만, `owner_visible` 이면 소유자가 직접 올린 문서(개인·팀)만, `linked_only` 면 연결 문서만(2026-10-26, 예전에는 연결 문서만). super_admin 은 소유 팀 규칙을 그대로 탑니다. 그 범위 안 문서는 인용 여부와 상관없이 원문도 열 수 있고, 범위 밖은 404 입니다. 상세는 [chatbot_sharing.md](./chatbot_sharing.md).
 
 ## 4. 강제 지점 (enforcement)
 

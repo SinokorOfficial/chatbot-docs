@@ -30,6 +30,7 @@ nav:
       - ERD · 스키마: erd.md
       - 문서 RAG: document_rag.md
       - RAG 개선 노트: rag-improvements.md
+      - 총무팀 질의 온톨로지: ga_query_ontology.md
 
   - 기능:
       - 챗봇: chatbot.md
@@ -78,6 +79,7 @@ nav:
           - 디자인 시스템 (Stitch): code-walkthrough/frontend-design.md
 
   - ADR (아키텍처 결정 기록):
+      - ADR-0010 · 도구를 MCP 서버로 분리 (제안): adr/0010-mcp-tool-servers.md
       - ADR-0009 · 운영/개발 티어 분리 (운영=RAG 전용): adr/0009-prod-dev-tier-split.md
       - ADR-0008 · Azure 전환 (LLM·임베딩·스토리지·벡터): adr/0008-azure-migration.md
       - ADR-0007 · Claude Code 모드 분리·작업공간 영속: adr/0007-claude-code-mode-separation-and-workspace-persistence.md
@@ -90,6 +92,7 @@ nav:
 
   - 운영 참고:
       - CI 파이프라인: ci.md
+
   - 변경 이력: changelog.md
 
 theme:
